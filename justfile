@@ -65,6 +65,7 @@ build-all-runtimes:
 clean:
     #!/bin/sh
     rm -rf ./.clients ./.server ./dist ./.e2e ./.logs **/__pycache__ ./.pytest_cache/
+    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 # ---------------------------------------------------------------------------------------------------------------------
 [group('test')]

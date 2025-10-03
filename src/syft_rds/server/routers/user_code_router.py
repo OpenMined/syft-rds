@@ -1,7 +1,8 @@
 from syft_core import SyftBoxURL
 from syft_event import SyftEvents
 from syft_event.types import Request
-from syft_rds.models.models import (
+
+from syft_rds.models import (
     GetAllRequest,
     GetOneRequest,
     ItemList,
@@ -10,7 +11,7 @@ from syft_rds.models.models import (
     UserCodeUpdate,
 )
 from syft_rds.server.router import RPCRouter
-from syft_rds.server.user_file_service import UserFileService
+from syft_rds.server.services.user_file_service import UserFileService
 from syft_rds.store import YAMLStore
 from syft_rds.utils.zip_utils import extract_zip
 

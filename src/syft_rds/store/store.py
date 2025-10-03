@@ -195,7 +195,7 @@ class YAMLStore(Generic[T]):
         return record
 
     @ensure_store_exists
-    def update(self, uid: str | UUID, record: T) -> T:
+    def update(self, uid: str | UUID, record: T) -> Optional[T]:
         """
         Update a record by UID
 
@@ -204,17 +204,14 @@ class YAMLStore(Generic[T]):
             record: New data to update with
 
         Returns:
-            Updated record
-
-        Raises:
-            FileNotFoundError: If no record with the given UID exists
+            Updated record if found, None otherwise
         """
         if not isinstance(record, self.item_type):
             raise TypeError(f"`record` must be of type {self.item_type.__name__}")
 
         existing_record = self.get_by_uid(uid)
         if not existing_record:
-            raise FileNotFoundError(f"Record with UID {uid} does not exist")
+            return None
 
         # Update the record
         updated_record = existing_record.model_copy(

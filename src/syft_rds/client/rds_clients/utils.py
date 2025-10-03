@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Any, Callable
+from typing import Callable, Any
 
 from syft_rds.client.rds_clients.base import RDSClientModule
 

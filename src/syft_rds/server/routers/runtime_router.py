@@ -1,6 +1,5 @@
 from syft_event import SyftEvents
-
-from syft_rds.models import (
+from syft_rds.models.models import (
     GetAllRequest,
     GetOneRequest,
     ItemList,

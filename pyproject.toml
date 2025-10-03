@@ -1,30 +1,34 @@
 [project]
 name = "syft-rds"
-version = "0.3.1"
+version = "0.1.1-dev.4"
 description = "Doing remote data science with SyftBox"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-  "syft-event>=0.4.1",
   "loguru>=0.7.3",
-  "pydantic[email]>=2.11.9",
-  "rich>=13.5.0,<14.0.0",
-  "typing-extensions>=4.14.1",
+  "pydantic[email]>=2.10.4",
+  "rich>=13.9.4",
+  "syft-core>=0.2.7",
+  "syft-event>=0.2.3",
+  "syft-rpc>=0.2.2",
+  "typing-extensions>=4.12.2",
   "pyyaml>=6.0.2",
-  "typer>=0.12.5,<0.13.0",
-  "nh3>=0.3.0",
+  "typer>=0.12.5",
+  "nh3>=0.2.21",
   "jinja2>=3.1.6",
   "ipython>=8.18.1",
+  "cryptography>=45.0.2",
 ]
 
 [tool.uv]
 dev-dependencies = [
-  "pre-commit>=4.3.0",
-  "pytest>=8.4.2",
-  "pytest-asyncio>=1.2.0",
+  "pre-commit>=4.1.0",
+  "pytest>=8.3.4",
+  "pytest-asyncio>=0.25.3",
   "jupyter>=1.1.1",
-  "pandas>=2.3.2",
+  "pandas>=1.4.0",
   "httpx>=0.28.1",
+  "syftbox==0.4.0",
 ]
 
 [build-system]

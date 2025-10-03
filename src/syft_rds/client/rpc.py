@@ -12,7 +12,8 @@ from syft_rpc import SyftResponse
 from syft_rpc.rpc import BodyType
 
 from syft_rds.client.connection import BlockingRPCConnection
-from syft_rds.models import (
+from syft_rds.models.base import ItemBase, ItemBaseCreate, ItemBaseUpdate
+from syft_rds.models.models import (
     Dataset,
     DatasetCreate,
     DatasetUpdate,
@@ -28,12 +29,6 @@ from syft_rds.models import (
     UserCode,
     UserCodeCreate,
     UserCodeUpdate,
-)
-from syft_rds.models.base import ItemBase, ItemBaseCreate, ItemBaseUpdate
-from syft_rds.models.custom_function_models import (
-    CustomFunction,
-    CustomFunctionCreate,
-    CustomFunctionUpdate,
 )
 
 if TYPE_CHECKING:
@@ -125,30 +120,21 @@ class UserCodeRPCClient(CRUDRPCClient[UserCode, UserCodeCreate, UserCodeUpdate])
     ITEM_TYPE = UserCode
 
 
-class CustomFunctionRPCClient(
-    CRUDRPCClient[CustomFunction, CustomFunctionCreate, CustomFunctionUpdate]
-):
-    MODULE_NAME = "custom_function"
-    ITEM_TYPE = CustomFunction
-
-
 class RPCClient(RPCClientModule):
     def __init__(self, config: "RDSClientConfig", connection: BlockingRPCConnection):
         super().__init__(config, connection)
 
-        self.job = JobRPCClient(self.config, self.connection)
+        self.jobs = JobRPCClient(self.config, self.connection)
         self.user_code = UserCodeRPCClient(self.config, self.connection)
         self.runtime = RuntimeRPCClient(self.config, self.connection)
         self.dataset = DatasetRPCClient(self.config, self.connection)
-        self.custom_function = CustomFunctionRPCClient(self.config, self.connection)
 
         # Create lookup table for type-based access
         self._type_map = {
-            Job: self.job,
+            Job: self.jobs,
             UserCode: self.user_code,
             Runtime: self.runtime,
             Dataset: self.dataset,
-            CustomFunction: self.custom_function,
         }
 
     def for_type(

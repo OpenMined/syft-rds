@@ -1,6 +1,6 @@
 from abc import ABC
 from datetime import datetime, timezone
-from typing_extensions import (
+from typing import (
     TYPE_CHECKING,
     Any,
     ClassVar,
@@ -16,7 +16,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
 from syft_core import Client as SyftBoxClient
 
-from syft_rds.display_utils.formatter import (
+from syft_rds.models.formatter import (
     ANSIPydanticFormatter,
     PydanticFormatter,
 )
@@ -83,14 +83,14 @@ class ItemBase(BaseModel, ABC):
                 f"Cannot apply update with UID {other.uid} to instance with UID {self.uid}"
             )
         if isinstance(other, type(self)):
-            update_dict = other.model_dump()
+            update_dict = other.model_dump(exclude_unset=True, exclude_none=True)
         elif isinstance(other, ItemBaseUpdate):
             update_target_type = other.get_target_model()
             if other.get_target_model() is not type(self):
                 raise ValueError(
                     f"Attempted to apply update for {update_target_type} to {type(self)}"
                 )
-            update_dict = other.model_dump(exclude_unset=True)
+            update_dict = other.model_dump(exclude_unset=True, exclude_none=True)
             update_dict["updated_at"] = _utcnow()
         else:
             raise TypeError(

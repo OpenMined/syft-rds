@@ -1,14 +1,14 @@
 from pathlib import Path
 from typing import Optional, Union
-from uuid import UUID
 
 from syft_rds.client.rds_clients.base import RDSClientModule
 from syft_rds.client.rds_clients.utils import ensure_is_admin
-from syft_rds.models import (
+from syft_rds.models.models import (
     Dataset,
     DatasetCreate,
     DatasetUpdate,
 )
+from syft_rds.syft_runtime.main import CodeRuntime
 
 
 class DatasetRDSClient(RDSClientModule[Dataset]):
@@ -23,7 +23,8 @@ class DatasetRDSClient(RDSClientModule[Dataset]):
         summary: Optional[str] = None,
         description_path: Optional[Union[str, Path]] = None,
         tags: list[str] = [],
-        runtime_id: Optional[UUID] = None,
+        runtime: Optional[CodeRuntime] = None,
+        auto_approval: list[str] = [],
     ) -> Dataset:
         dataset_create = DatasetCreate(
             name=name,
@@ -32,7 +33,8 @@ class DatasetRDSClient(RDSClientModule[Dataset]):
             summary=summary,
             description_path=str(description_path) if description_path else None,
             tags=tags,
-            runtime_id=runtime_id,
+            runtime=runtime,
+            auto_approval=auto_approval,
         )
         return self.local_store.dataset.create(dataset_create)
 
@@ -53,4 +55,4 @@ class DatasetRDSClient(RDSClientModule[Dataset]):
 
     @ensure_is_admin
     def update(self, dataset_update: DatasetUpdate) -> Dataset:
-        raise NotImplementedError("Dataset update is not supported yet")
+        return self.local_store.dataset.update(dataset_update)

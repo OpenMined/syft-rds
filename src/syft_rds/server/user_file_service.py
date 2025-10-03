@@ -4,13 +4,11 @@ from typing import Type
 from syft_rds.models.base import ItemBase
 
 USER_FILES_DIR = "user_files"
-
-USER_FILES_PERMISSION_TEMPLATE = """
-rules:
-- pattern: '**'
-  access:
-    read:
-    - '{useremail}'
+USER_FILES_PERMISSION = """
+- path: '{useremail}/**'
+  permissions:
+  - read
+  user: '*'
 """
 
 
@@ -20,8 +18,8 @@ class UserFileService:
 
     General structure:
     USER_FILES_DIR/
+    ├── syftperm.yaml
     ├── {useremail}/
-    │   ├── syft.pub.yaml  # Read permissions for the user {useremail}
     │   ├── {item_type}/
     │   │   ├── {item_uid}/
 
@@ -46,23 +44,13 @@ class UserFileService:
         """Initialize the user files directory with proper permissions."""
         self.user_files_dir.mkdir(exist_ok=True)
 
-    def _is_valid_dirname(self, user: str) -> str:
-        if not user or user in {".", ".."}:
-            raise ValueError("Invalid directory name: cannot be '.' or '..' or empty")
-        disallowed = {"/", "\\", "\x00"}
-        if any(char in user for char in disallowed):
-            raise ValueError(f"Invalid directory name: contains one of {disallowed}")
-        return user
+        perm_path = self.user_files_dir / "syftperm.yaml"
+        perm_path.write_text(USER_FILES_PERMISSION)
 
     def dir_for_user(self, user: str) -> Path:
         """Get the user's file directory, creating it if it doesn't exist"""
-        user = self._is_valid_dirname(user)
         user_dir = self.user_files_dir / user
         user_dir.mkdir(exist_ok=True, parents=True)
-        perm_file_path = user_dir / "syft.pub.yaml"
-        if not perm_file_path.exists():
-            with perm_file_path.open("w") as perm_file:
-                perm_file.write(USER_FILES_PERMISSION_TEMPLATE.format(useremail=user))
         return user_dir
 
     def dir_for_type(self, user: str, type_: Type[ItemBase]) -> Path:

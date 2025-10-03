@@ -7,7 +7,7 @@ from syft_core import Client as SyftBoxClient
 from syft_core.url import SyftBoxURL
 
 from syft_rds.client.local_stores.base import CRUDLocalStore
-from syft_rds.models import (
+from syft_rds.models.models import (
     Dataset,
     DatasetCreate,
     DatasetUpdate,
@@ -129,7 +129,7 @@ class DatasetUrlManager:
 
     @staticmethod
     def get_private_dataset_syftbox_url(
-        datasite_email: str, dataset_name: str, path: Union[Path, str]
+        datasite_email: str, dataset_name: str, path: Union[Path, str] = None
     ) -> SyftBoxURL:
         """Generate a SyftBox URL for the private dataset."""
         return SyftBoxURL(
@@ -265,9 +265,12 @@ class DatasetFilesManager:
         return self.copy_directory(path, private_dataset_dir)
 
     def copy_description_file_to_public_syftbox_dir(
-        self, dataset_name: str, description_path: Union[str, Path]
-    ) -> Path:
+        self, dataset_name: str, description_path: Union[str, Path, None]
+    ) -> Path | None:
         """Copy description file to the public SyftBox directory."""
+        if not description_path:
+            return
+
         public_dataset_dir: Path = self._path_manager.get_local_public_dataset_dir(
             dataset_name
         )
@@ -348,6 +351,7 @@ class DatasetSchemaManager:
         )
 
         # Create the dataset schema object
+        # TODO: Could we not unpack DatasetCreate directly?
         dataset = Dataset(
             name=dataset_create.name,
             private=private_url,
@@ -355,9 +359,10 @@ class DatasetSchemaManager:
             tags=dataset_create.tags,
             summary=dataset_create.summary,
             readme=readme_url,
+            auto_approval=dataset_create.auto_approval,
         )
-        if dataset_create.runtime_id:
-            dataset.runtime_id = dataset_create.runtime_id
+        if dataset_create.runtime:
+            dataset.runtime = dataset_create.runtime
 
         # Persist the schema to store
         self._schema_store.create(dataset)
@@ -496,9 +501,30 @@ class DatasetLocalStore(CRUDLocalStore[Dataset, DatasetCreate, DatasetUpdate]):
         """
         return super().get_all(request)
 
-    def update(self, item: DatasetUpdate) -> Dataset:
-        """Not implemented for Dataset."""
-        raise NotImplementedError("Not implemented for Dataset")
+    def update(self, update_item: DatasetUpdate) -> Dataset:
+        """
+        Update an existing dataset.
+
+        Args:
+            update_dataset: The dataset update data
+
+        Returns:
+            The updated dataset
+
+        Raises:
+            RuntimeError: If update fails
+        """
+        try:
+            existing_dataset = self.store.get_by_uid(update_item.uid)
+            if existing_dataset is None:
+                raise ValueError(f"Dataset with uid {update_item.uid} not found")
+
+            updated_dataset = existing_dataset.apply_update(update_item)
+            return self.store.update(updated_dataset.uid, updated_dataset)
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to update dataset with uid {update_item.uid}: {str(e)}"
+            )
 
     def get(self, request: GetOneRequest) -> Dataset:
         """

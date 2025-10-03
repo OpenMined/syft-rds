@@ -1,3 +1,3 @@
 from .store import YAMLStore
 
-__all__ = ["YAMLStore", "YAMLStore"]
+__all__ = ["YAMLStore"]

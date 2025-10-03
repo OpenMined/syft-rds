@@ -6,27 +6,29 @@ from pydantic import BaseModel, Field
 from syft_core import Client as SyftBoxClient
 
 from syft_rds.client.local_store import LocalStore
+from syft_rds.syft_runtime.main import CodeRuntime
 from syft_rds.client.rpc import RPCClient, T
-from syft_rds.models import GetAllRequest, GetOneRequest, Job, Runtime
+from syft_rds.models.models import GetAllRequest, GetOneRequest, Job
 
 if TYPE_CHECKING:
     from syft_rds.client.rds_client import RDSClient
 
 
 class ClientRunnerConfig(BaseModel):
-    runtime: Runtime | None = None
+    runtime: CodeRuntime = CodeRuntime(cmd=["python"])
     timeout: int = 60
+    use_docker: bool = False
     job_output_folder: Path = Field(
         default_factory=lambda: Path(".server/syft-rds-jobs")
     )
 
 
 class RDSClientConfig(BaseModel):
-    uid: UUID = Field(
-        default_factory=uuid4
-    )  # used to register the client & reference it from other objects
+    # UUID is used to register the client to reference it from other objects
+    uid: UUID = Field(default_factory=uuid4)
     host: str
     app_name: str = "RDS"
+
     rpc_expiry: str = "5m"
     runner_config: ClientRunnerConfig = Field(default_factory=ClientRunnerConfig)
 
@@ -73,7 +75,7 @@ class RDSClientModule(RDSClientBase, Generic[T]):
     def rds(self) -> "RDSClient":
         """
         Returns the parent RDSClient, raises an error if not set.
-        Used for accessing other client modules from this module, e.g. JobRDSClient().rds.dataset.get_all() -> DatasetRDSClient
+        Used for accessing other client modules from this module, e.g. JobRDSClient().rds.datasets.get_all() -> DatasetRDSClient
         """
         if self.parent is None:
             raise ValueError("Parent client not set")

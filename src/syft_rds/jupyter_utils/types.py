@@ -1,7 +1,6 @@
-import os
 from collections import UserDict, UserList
-
-from syft_rds.display_utils.jupyter.tabulator import build_tabulator_table
+import os
+from syft_rds.jupyter_utils.tabulator import build_tabulator_table
 
 SYFT_NO_REPR_HTML = "SYFT_NO_REPR_HTML" in os.environ
 

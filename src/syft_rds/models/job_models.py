@@ -29,6 +29,7 @@ class JobStatus(str, enum.Enum):
     # end states
     rejected = "rejected"  # failed to pass the review
     shared = "shared"  # shared with the user
+    approved = "approved"  # approved by the reviewer
 
 
 class JobErrorKind(str, enum.Enum):
@@ -52,58 +53,73 @@ class Job(ItemBase):
         "runtime_name",
         "status",
         "error",
+        "error_message",
     ]
 
     name: str = Field(default_factory=generate_name)
     dataset_name: str
-    runtime_id: UUID
     user_code_id: UUID
+
+    runtime_id: Optional[UUID] = None
     custom_function_id: Optional[UUID] = None
+    enclave: str = ""
+
     description: str | None = None
     tags: list[str] = Field(default_factory=list)
     user_metadata: dict = {}
+
     status: JobStatus = JobStatus.pending_code_review
     error: JobErrorKind = JobErrorKind.no_error
     error_message: str | None = None
     output_url: SyftBoxURL | None = None
 
     def describe(self) -> None:
+        fields = [
+            "uid",
+            "created_by",
+            "created_at",
+            "updated_at",
+            "name",
+            "description",
+            "status",
+            "error",
+            "error_message",
+            "output_path",
+            "dataset_name",
+            "user_code_name",
+        ]
+
+        # Conditionally add optional fields
+        if self.runtime_id is not None:
+            fields.append("runtime_name")
+        if self.custom_function_id is not None:
+            fields.append("custom_function_name")
+        if self.enclave:
+            fields.append("enclave")
+
         html_description = create_html_repr(
             obj=self,
-            fields=[
-                "uid",
-                "created_by",
-                "created_at",
-                "updated_at",
-                "name",
-                "description",
-                "status",
-                "error",
-                "error_message",
-                "output_path",
-                "dataset_name",
-                "user_code_name",
-                "custom_function_name",
-            ],
+            fields=fields,
             display_paths=["output_path"],
         )
         display(HTML(html_description))
 
     @property
-    def runtime(self) -> "Runtime":
+    def runtime(self) -> Optional["Runtime"]:
         """Get the runtime of the job"""
-        client = self._client
-        return client.runtime.get(self.runtime_id)
+        if self.runtime_id is None:
+            return None
+        return self._client.runtime.get(self.runtime_id)
 
     @property
-    def runtime_name(self) -> str:
+    def runtime_name(self) -> Optional[str]:
         """Get the name of the runtime of the job"""
-        return self.runtime.name
+        runtime = self.runtime
+        return runtime.name if runtime else None
 
     @property
     def user_code(self) -> "UserCode":
-        client = self._client
-        return client.user_code.get(self.user_code_id)
+        return self._client.user_code.get(self.user_code_id)
 
     @property
     def user_code_name(self) -> str:
@@ -125,6 +141,50 @@ class Job(ItemBase):
     def show_user_code(self) -> None:
         user_code = self.user_code
         user_code.describe()
+
+    def get_update_for_reject(self, reason: str = "unknown reason") -> "JobUpdate":
+        """
+        Create a JobUpdate object with the rejected status
+        based on the current status
+        """
+        allowed_statuses = (
+            JobStatus.pending_code_review,
+            JobStatus.job_run_finished,
+            JobStatus.job_run_failed,
+        )
+        if self.status not in allowed_statuses:
+            raise ValueError(f"Cannot reject job with status: {self.status}")
+
+        original_status = self.status
+        self.error_message = reason
+        self.status = JobStatus.rejected
+        self.error = (
+            JobErrorKind.failed_code_review
+            if original_status == JobStatus.pending_code_review
+            else JobErrorKind.failed_output_review
+        )
+        return JobUpdate(
+            uid=self.uid,
+            status=self.status,
+            error=self.error,
+            error_message=self.error_message,
+        )
+
+    def get_update_for_approve(self) -> "JobUpdate":
+        """
+        Create a JobUpdate object with the approved status
+        based on the current status
+        """
+        allowed_statuses = (JobStatus.pending_code_review,)
+        if self.status not in allowed_statuses:
+            raise ValueError(f"Cannot approve job with status: {self.status}")
+
+        self.status = JobStatus.approved
+
+        return JobUpdate(
+            uid=self.uid,
+            status=self.status,
+        )
 
     def get_update_for_in_progress(self) -> "JobUpdate":
         return JobUpdate(
@@ -184,11 +244,12 @@ class JobUpdate(ItemBaseUpdate[Job]):
 class JobCreate(ItemBaseCreate[Job]):
     dataset_name: str
     user_code_id: UUID
-    runtime_id: UUID
-    name: str | None = None
-    description: str | None = None
+    runtime_id: Optional[UUID] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
     custom_function_id: Optional[UUID] = None
+    enclave: str = ""
 
 
 class JobConfig(BaseModel):

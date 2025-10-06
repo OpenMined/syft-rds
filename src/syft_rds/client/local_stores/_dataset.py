@@ -1,13 +1,13 @@
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, Type, Union
+from typing_extensions import TYPE_CHECKING, Final, Type, Union, Optional
 
 from loguru import logger
 from syft_core import Client as SyftBoxClient
 from syft_core.url import SyftBoxURL
 
 from syft_rds.client.local_stores.base import CRUDLocalStore
-from syft_rds.models.models import (
+from syft_rds.models import (
     Dataset,
     DatasetCreate,
     DatasetUpdate,
@@ -266,7 +266,7 @@ class DatasetFilesManager:
 
     def copy_description_file_to_public_syftbox_dir(
         self, dataset_name: str, description_path: Union[str, Path, None]
-    ) -> Path | None:
+    ) -> Optional[Path]:
         """Copy description file to the public SyftBox directory."""
         if not description_path:
             return
@@ -361,8 +361,8 @@ class DatasetSchemaManager:
             readme=readme_url,
             auto_approval=dataset_create.auto_approval,
         )
-        if dataset_create.runtime:
-            dataset.runtime = dataset_create.runtime
+        if dataset_create.runtime_id:
+            dataset.runtime_id = dataset_create.runtime_id
 
         # Persist the schema to store
         self._schema_store.create(dataset)

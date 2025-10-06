@@ -1,6 +1,6 @@
 import shutil
 from pathlib import Path
-from typing import Final, Type
+from typing_extensions import Final, Type
 from uuid import UUID
 
 from syft_rds.client.local_stores.base import CRUDLocalStore

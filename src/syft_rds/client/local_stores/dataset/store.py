@@ -1,18 +1,19 @@
 from pathlib import Path
 import traceback
 from typing import TYPE_CHECKING, Final, Type, Union
+
+from syft_core import Client as SyftBoxClient
+
 from syft_rds.client.exceptions import DatasetExistsError, DatasetNotFoundError
 from syft_rds.client.local_stores.base import CRUDLocalStore
-from syft_rds.models.models import (
+from syft_rds.models import (
     Dataset,
     DatasetCreate,
     DatasetUpdate,
     GetAllRequest,
     GetOneRequest,
 )
-from syft_core import Client as SyftBoxClient
-
-from .managers import (
+from syft_rds.client.local_stores.dataset.managers import (
     DatasetPathManager,
     DatasetFilesManager,
     DatasetUrlManager,

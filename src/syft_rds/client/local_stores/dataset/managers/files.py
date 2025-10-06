@@ -1,11 +1,10 @@
 import shutil
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 from loguru import logger
 
-from syft_rds.models.models import DatasetCreate
-
-from .path import DatasetPathManager
+from syft_rds.models import DatasetCreate
+from syft_rds.client.local_stores.dataset.managers.path import DatasetPathManager
 
 
 class DatasetFilesManager:
@@ -128,7 +127,7 @@ class DatasetFilesManager:
 
     def copy_description_file_to_public_syftbox_dir(
         self, dataset_name: str, description_path: Union[str, Path, None]
-    ) -> Path | None:
+    ) -> Optional[Path]:
         """Copy description file to the public SyftBox directory."""
         if not description_path:
             return

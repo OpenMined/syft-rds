@@ -2,7 +2,11 @@ from pathlib import Path
 from typing import Union
 from syft_core import SyftBoxURL
 
-from ..constants import DIRECTORY_DATASETS, DIRECTORY_PRIVATE, DIRECTORY_PUBLIC
+from syft_rds.client.local_stores.dataset.constants import (
+    DIRECTORY_DATASETS,
+    DIRECTORY_PRIVATE,
+    DIRECTORY_PUBLIC,
+)
 
 
 class DatasetUrlManager:

@@ -1,11 +1,10 @@
 from pathlib import Path
 
 from syft_core import SyftBoxURL
-from syft_rds.models.models import Dataset, DatasetCreate
+from syft_rds.models import Dataset, DatasetCreate
 from syft_rds.store.store import YAMLStore
-
-from .path import DatasetPathManager
-from .url import DatasetUrlManager
+from syft_rds.client.local_stores.dataset.managers.path import DatasetPathManager
+from syft_rds.client.local_stores.dataset.managers.url import DatasetUrlManager
 
 
 class DatasetSchemaManager:

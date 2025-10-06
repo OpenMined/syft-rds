@@ -2,7 +2,7 @@ import json
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing_extensions import Any, Optional, Union
 from uuid import UUID
 
 from loguru import logger
@@ -30,14 +30,14 @@ class JobRDSClient(RDSClientModule[Job]):
         self,
         user_code_path: PathLike,
         dataset_name: str,
-        entrypoint: str | None = None,
-        name: str | None = None,
-        description: str | None = None,
-        tags: list[str] | None = None,
-        custom_function: CustomFunction | UUID | None = None,
-        runtime_name: str | None = None,
-        runtime_kind: str | None = None,
-        runtime_config: dict | None = None,
+        entrypoint: Optional[str] = None,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        custom_function: Optional[Union[CustomFunction, UUID]] = None,
+        runtime_name: Optional[str] = None,
+        runtime_kind: Optional[str] = None,
+        runtime_config: Optional[dict] = None,
         enclave: str = "",
     ) -> Job:
         """`submit` is a convenience method to create both a UserCode and a Job in one call."""
@@ -80,7 +80,7 @@ class JobRDSClient(RDSClientModule[Job]):
     def submit_with_params(
         self,
         dataset_name: str,
-        custom_function: CustomFunction | UUID,
+        custom_function: Union[CustomFunction, UUID],
         **params: Any,
     ) -> Job:
         """
@@ -88,7 +88,7 @@ class JobRDSClient(RDSClientModule[Job]):
 
         Args:
             dataset_name (str): The name of the dataset to use.
-            custom_function (CustomFunction | UUID): The custom function to use.
+            custom_function (Union[CustomFunction, UUID]): The custom function to use.
             **params: Additional parameters to pass to the custom function.
 
         Returns:
@@ -123,8 +123,8 @@ class JobRDSClient(RDSClientModule[Job]):
             )
 
     def _resolve_custom_func_id(
-        self, custom_function: CustomFunction | UUID | None
-    ) -> UUID | None:
+        self, custom_function: Optional[Union[CustomFunction, UUID]]
+    ) -> Optional[UUID]:
         if custom_function is None:
             return None
         if isinstance(custom_function, UUID):
@@ -136,7 +136,7 @@ class JobRDSClient(RDSClientModule[Job]):
                 f"Invalid custom_function type {type(custom_function)}. Must be CustomFunction, UUID, or None"
             )
 
-    def _resolve_usercode_id(self, user_code: UserCode | UUID) -> UUID:
+    def _resolve_usercode_id(self, user_code: Union[UserCode, UUID]) -> UUID:
         if isinstance(user_code, UUID):
             return user_code
         elif isinstance(user_code, UserCode):
@@ -159,13 +159,13 @@ class JobRDSClient(RDSClientModule[Job]):
 
     def create(
         self,
-        user_code: UserCode | UUID,
+        user_code: Union[UserCode, UUID],
         dataset_name: str,
         runtime: Runtime,
-        name: str | None = None,
-        description: str | None = None,
-        tags: list[str] | None = None,
-        custom_function: CustomFunction | UUID | None = None,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        custom_function: Optional[Union[CustomFunction, UUID]] = None,
         enclave: str = "",
     ) -> Job:
         user_code_id = self._resolve_usercode_id(user_code)
@@ -222,7 +222,7 @@ class JobRDSClient(RDSClientModule[Job]):
         )
 
     def review_results(
-        self, job: Job, output_dir: PathLike | None = None
+        self, job: Job, output_dir: Optional[PathLike] = None
     ) -> JobResults:
         if output_dir is None:
             output_dir = self.config.runner_config.job_output_folder / job.uid.hex
@@ -311,7 +311,9 @@ class JobRDSClient(RDSClientModule[Job]):
         new_job = self.rpc.job.update(job_update)
         return job.apply_update(new_job)
 
-    def delete(self, job: Job | UUID, delete_orphaned_usercode: bool = True) -> bool:
+    def delete(
+        self, job: Union[Job, UUID], delete_orphaned_usercode: bool = True
+    ) -> bool:
         """Delete a single job by Job object or UUID.
 
         Args:

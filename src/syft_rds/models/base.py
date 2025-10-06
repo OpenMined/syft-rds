@@ -1,6 +1,6 @@
 from abc import ABC
 from datetime import datetime, timezone
-from typing import (
+from typing_extensions import (
     TYPE_CHECKING,
     Any,
     ClassVar,
@@ -16,7 +16,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
 from syft_core import Client as SyftBoxClient
 
-from syft_rds.models.formatter import (
+from syft_rds.display_utils.formatter import (
     ANSIPydanticFormatter,
     PydanticFormatter,
 )

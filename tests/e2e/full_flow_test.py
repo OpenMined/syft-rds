@@ -74,7 +74,7 @@ async def test_e2e_full_flow(e2e_context: E2EContext):
         logger.error(f"DS tries to access the private data raised {excinfo}")
 
     job = ds_rds_client.job.submit(
-        user_code_path=DS_PATH / "ds.py", dataset_name=dataset.name
+        user_code_path=DS_PATH / "code" / "main.py", dataset_name=dataset.name
     )
     await asyncio.sleep(3)
 

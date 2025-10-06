@@ -28,9 +28,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6.8
         with:
-          version: "0.4.25"
+          version: "0.8.23"
 
       - name: Get uv cache dir
         id: pip-cache
@@ -47,7 +47,7 @@ jobs:
             pr-uv-${{ runner.os }}-py${{ matrix.python-version }}
 
       - name: Install Just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v3
         with:
           just-version: "1.36.0"
 

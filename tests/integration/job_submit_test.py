@@ -120,7 +120,7 @@ def test_job_submit_with_custom_runtime(
     create_dataset(do_rds_client, name=submit_kwargs["dataset_name"])
 
     # DS: submit job
-    job = ds_rds_client.jobs.submit(**submit_kwargs)
+    job = ds_rds_client.job.submit(**submit_kwargs)
 
     assert job is not None
     assert job.status == JobStatus.pending_code_review

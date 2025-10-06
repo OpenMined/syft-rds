@@ -4,10 +4,12 @@ from syft_core import Client as SyftBoxClient
 
 from syft_rds.display_utils.jupyter.types import TableList
 from syft_rds.models import (
+    ItemBase,
+    ItemBaseCreate,
+    ItemBaseUpdate,
     GetAllRequest,
     GetOneRequest,
 )
-from syft_rds.models.base import ItemBase, ItemBaseCreate, ItemBaseUpdate
 from syft_rds.store import YAMLStore
 
 if TYPE_CHECKING:

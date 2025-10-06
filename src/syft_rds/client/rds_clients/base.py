@@ -1,5 +1,13 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, Literal, Optional, Type
+from typing_extensions import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Generic,
+    Literal,
+    Optional,
+    Type,
+)
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
@@ -14,7 +22,7 @@ if TYPE_CHECKING:
 
 
 class ClientRunnerConfig(BaseModel):
-    runtime: Runtime | None = None
+    runtime: Optional[Runtime] = None
     timeout: int = 60
     job_output_folder: Path = Field(
         default_factory=lambda: Path(".server/syft-rds-jobs")
@@ -22,9 +30,7 @@ class ClientRunnerConfig(BaseModel):
 
 
 class RDSClientConfig(BaseModel):
-    uid: UUID = Field(
-        default_factory=uuid4
-    )  # used to register the client & reference it from other objects
+    uid: UUID = Field(default_factory=uuid4)
     host: str
     app_name: str = "RDS"
     rpc_expiry: str = "5m"

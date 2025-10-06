@@ -1,19 +1,21 @@
 import os
+import pandas as pd
 
 DATA_DIR = os.environ["DATA_DIR"]
 OUTPUT_DIR = os.environ["OUTPUT_DIR"]
 
+# Read the dataset
+df = pd.read_csv(os.path.join(DATA_DIR, "data.csv"))
 
-with open(os.path.join(DATA_DIR, "data.csv"), "r") as f:
-    print(f.read())
+# Perform computation: sum A + B + C for each row
+df["sum"] = df["A"] + df["B"] + df["C"]
 
-with open(os.path.join(OUTPUT_DIR, "my_result.csv"), "w") as f:
-    f.write("Hello, world!")
+# Assert results (validate computation)
+expected_sum = df["A"] + df["B"] + df["C"]
+assert (df["sum"] == expected_sum).all(), "Sum calculation failed"
 
+print(f"Processed {len(df)} rows successfully")
 
-def main():
-    print("Hello from test job!")
-
-
-if __name__ == "__main__":
-    main()
+# Write output
+output_path = os.path.join(OUTPUT_DIR, "result.csv")
+df.to_csv(output_path, index=False)

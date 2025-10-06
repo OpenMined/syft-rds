@@ -35,7 +35,7 @@ alias rj := run-jupyter
 run-jupyter:
     #!/bin/bash
     uv venv
-    uv sync
+    uv sync --all-groups
     uv run jupyter-lab
 
 # Build a runtime container based on the Dockerfile name
@@ -64,8 +64,42 @@ build-all-runtimes:
 [group('utils')]
 clean:
     #!/bin/sh
-    rm -rf ./.clients ./.server ./dist ./.e2e ./.logs **/__pycache__ ./.pytest_cache/
-    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    echo "{{ _cyan }}Cleaning up local files and directories...{{ _nc }}"
+
+    # Remove root directories if they exist
+    for dir in ./.clients ./dist ./.e2e ./.logs ./.pytest_cache; do
+        if [ -d "$dir" ]; then
+            echo "  {{ _red }}✗{{ _nc }} Removing $dir"
+            rm -rf "$dir"
+        fi
+    done
+
+    # Remove all .server directories (including in subdirectories)
+    server_dirs=$(find . -type d -name ".server" 2>/dev/null)
+    if [ -n "$server_dirs" ]; then
+        echo "$server_dirs" | while read -r dir; do
+            echo "  {{ _red }}✗{{ _nc }} Removing $dir"
+            rm -rf "$dir"
+        done
+    fi
+
+    # Remove all .clients directories (including in subdirectories)
+    client_dirs=$(find . -type d -name ".clients" 2>/dev/null)
+    if [ -n "$client_dirs" ]; then
+        echo "$client_dirs" | while read -r dir; do
+            echo "  {{ _red }}✗{{ _nc }} Removing $dir"
+            rm -rf "$dir"
+        done
+    fi
+
+    # Remove __pycache__ directories
+    pycache_count=$(find . -type d -name "__pycache__" 2>/dev/null | wc -l)
+    if [ "$pycache_count" -gt 0 ]; then
+        echo "  {{ _red }}✗{{ _nc }} Removing $pycache_count __pycache__ directories"
+        find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    fi
+
+    echo "{{ _green }}✓ Clean complete!{{ _nc }}"
 
 # ---------------------------------------------------------------------------------------------------------------------
 [group('test')]
@@ -74,7 +108,7 @@ setup-test-env:
     if [ ! -d ".venv" ]; then
         uv venv
     fi
-    uv sync --cache-dir=.uv-cache
+    uv sync --all-groups --cache-dir=.uv-cache
 
 [group('test')]
 test-unit: setup-test-env
@@ -168,7 +202,7 @@ run-rds-server syftbox_config="":
 install:
     #!/bin/bash
     uv venv
-    uv sync
+    uv sync --all-groups
 
 
 # Run both a syftbox client and an RDS server

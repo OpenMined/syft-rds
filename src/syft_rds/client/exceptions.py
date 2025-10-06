@@ -4,3 +4,15 @@ class RDSClientError(Exception):
 
 class RDSValidationError(RDSClientError):
     pass
+
+
+class DatasetExistsError(RDSClientError):
+    pass
+
+
+class DatasetNotFoundError(RDSClientError):
+    pass
+
+
+class JobNotFoundError(RDSClientError):
+    pass

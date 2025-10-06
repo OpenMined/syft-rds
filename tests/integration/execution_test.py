@@ -2,6 +2,7 @@ import time
 
 import pytest
 from loguru import logger
+import pandas as pd
 
 from syft_rds.client.rds_client import RDSClient
 from syft_rds.client.rds_clients.runtime import (
@@ -12,7 +13,7 @@ from syft_rds.utils.constants import JOB_STATUS_POLLING_INTERVAL
 from tests.conftest import DS_PATH
 from tests.utils import create_dataset
 
-single_file_submission = {"user_code_path": DS_PATH / "ds.py"}
+single_file_submission = {"user_code_path": DS_PATH / "code" / "main.py"}
 folder_submission = {"user_code_path": DS_PATH / "code", "entrypoint": "main.py"}
 runtime_configs = {
     "default_runtime": {},
@@ -101,9 +102,13 @@ def _run_and_verify_job(do_rds_client: RDSClient, blocking: bool):
 
     all_files_folders = list(output_path.glob("**/*"))
     all_files = [f for f in all_files_folders if f.is_file()]
-    assert len(all_files) == 3  # output.txt, stdout.log, stderr.log
+    assert len(all_files) == 3  # result.csv, stdout.log, stderr.log
 
-    my_result = output_path / "output" / "my_result.csv"
-    assert my_result.exists()
-    with open(my_result, "r") as f:
-        assert f.read() == "Hello, world!"
+    output_file = output_path / "output" / "result.csv"
+    assert output_file.exists()
+
+    df = pd.read_csv(output_file)
+    assert "sum" in df.columns
+    assert len(df) == 5  # 5 rows of data
+    # Verify first row: A=2, B=3, C=4, sum should be 9
+    assert df.iloc[0]["sum"] == 9

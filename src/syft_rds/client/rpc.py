@@ -13,6 +13,9 @@ from syft_rpc.rpc import BodyType
 
 from syft_rds.client.connection import BlockingRPCConnection
 from syft_rds.models import (
+    ItemBase,
+    ItemBaseCreate,
+    ItemBaseUpdate,
     Dataset,
     DatasetCreate,
     DatasetUpdate,
@@ -28,9 +31,6 @@ from syft_rds.models import (
     UserCode,
     UserCodeCreate,
     UserCodeUpdate,
-)
-from syft_rds.models.base import ItemBase, ItemBaseCreate, ItemBaseUpdate
-from syft_rds.models.custom_function_models import (
     CustomFunction,
     CustomFunctionCreate,
     CustomFunctionUpdate,

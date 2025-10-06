@@ -6,7 +6,7 @@ from syft_core import Client
 from syft_event import SyftEvents
 
 from syft_rds import __version__
-from syft_rds.models import Job, Runtime, UserCode
+from syft_rds.models import Dataset, Job, Runtime, UserCode
 from syft_rds.models.custom_function_models import CustomFunction
 from syft_rds.server.router import RPCRouter
 from syft_rds.server.routers.custom_function_router import custom_function_router
@@ -39,6 +39,9 @@ def _init_services(app: SyftEvents) -> None:
     )
     app.state["custom_function_store"] = YAMLStore[CustomFunction](
         item_type=CustomFunction, store_dir=store_dir
+    )
+    app.state["dataset_store"] = YAMLStore[Dataset](
+        item_type=Dataset, store_dir=store_dir
     )
 
     # UserFileService handles files on syftbox only visible to one user

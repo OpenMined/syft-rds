@@ -39,6 +39,9 @@ WORKDIR /app/code
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# Install pandas for data processing
+RUN pip install --no-cache-dir pandas
+
 USER runtimeuser
 
 # Set common environment variables

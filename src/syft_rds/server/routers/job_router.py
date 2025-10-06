@@ -52,8 +52,13 @@ def create_job(create_request: JobCreate, app: SyftEvents, request: Request) -> 
 def _handle_auto_approval(
     create_request: JobCreate, job_res: Job, app: SyftEvents, request: Request
 ) -> None:
-    dataset_store: YAMLStore[Dataset] = app.state["dataset_store"]
+    dataset_store: YAMLStore[Dataset] = app.state.get("dataset_store")
+    if not dataset_store:
+        return  # Skip auto-approval if dataset_store not configured
+
     dataset: Dataset = dataset_store.get_one(name=create_request.dataset_name)
+    if not dataset:
+        return  # Skip auto-approval if dataset not found
 
     if request.sender in dataset.auto_approval:
         try:

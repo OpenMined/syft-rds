@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 from syft_core import SyftClientConfig
+from syft_rds.client.exceptions import DatasetExistsError
 from syft_rds.client.rds_client import RDSClient, init_session
 from tests.conftest import MOCK_DATA_PATH, PRIVATE_DATA_PATH, README_PATH
 from tests.utils import create_dataset
@@ -146,7 +147,7 @@ def test_create_datasets_same_name(do_syftbox_config: SyftClientConfig) -> None:
     create_dataset(do_rds_client, "DuplicateName")
 
     with pytest.raises(
-        ValueError, match="Dataset with name 'DuplicateName' already exists"
+        DatasetExistsError, match="Dataset with name 'DuplicateName' already exists"
     ):
         create_dataset(do_rds_client, "DuplicateName")
 

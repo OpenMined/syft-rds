@@ -20,5 +20,5 @@ class GetAllRequest(BaseModel):
 
 
 class GetOneRequest(BaseModel):
-    uid: UUID | None = None
+    uid: Optional[UUID] = None
     filters: dict[str, Any] = Field(default_factory=dict)

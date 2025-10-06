@@ -47,7 +47,7 @@ jobs:
             pr-uv-${{ runner.os }}-py${{ matrix.python-version }}
 
       - name: Install Just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v3
         with:
           just-version: "1.36.0"
 

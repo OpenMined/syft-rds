@@ -104,21 +104,23 @@ def test_job_delete_preserve_shared_usercode(do_rds_client: RDSClient):
     )
 
     # Create runtime
-    runtime = do_rds_client.runtime.create()
+    runtime = do_rds_client.runtime.create(
+        runtime_name="test_runtime", runtime_kind="python"
+    )
 
     # Submit two jobs using the same UserCode
     job1 = do_rds_client.job.create(
         name="Job 1",
         user_code=usercode,
         dataset_name="test_dataset",
-        runtime=runtime,
+        runtime_name=runtime.name,
     )
 
     job2 = do_rds_client.job.create(
         name="Job 2",
         user_code=usercode,
         dataset_name="test_dataset",
-        runtime=runtime,
+        runtime_name=runtime.name,
     )
 
     # Delete one job

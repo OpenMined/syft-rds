@@ -146,7 +146,7 @@ def test_user_code_crud(ds_rds_client: RDSClient):
     assert code2 in all_codes
 
 
-def test_runtime_crud(ds_rds_client: RDSClient):
+def test_runtime_crud(do_rds_client: RDSClient, ds_rds_client: RDSClient):
     runtime_create = RuntimeCreate(
         name="python3.9",
         kind="python",
@@ -156,16 +156,16 @@ def test_runtime_crud(ds_rds_client: RDSClient):
         description="Python 3.9 Runtime",
         tags=["python", "test"],
     )
-    runtime = ds_rds_client.rpc.runtime.create(runtime_create)
+    runtime = do_rds_client.rpc.runtime.create(runtime_create)
     assert runtime.name == "python3.9"
 
     # Get One
     get_req = GetOneRequest(uid=runtime.uid)
-    fetched_runtime = ds_rds_client.rpc.runtime.get_one(get_req)
+    fetched_runtime = do_rds_client.rpc.runtime.get_one(get_req)
     assert fetched_runtime == runtime
 
     all_req = GetAllRequest()
-    all_runtimes = ds_rds_client.rpc.runtime.get_all(all_req)
+    all_runtimes = do_rds_client.rpc.runtime.get_all(all_req)
     assert len(all_runtimes) == 1
 
     # Insert second (python runtime)
@@ -175,10 +175,10 @@ def test_runtime_crud(ds_rds_client: RDSClient):
         description="Python 3.10 Runtime",
         tags=["python", "test"],
     )
-    runtime2 = ds_rds_client.rpc.runtime.create(runtime2_create)
+    runtime2 = do_rds_client.rpc.runtime.create(runtime2_create)
 
     all_req = GetAllRequest()
-    all_runtimes = ds_rds_client.rpc.runtime.get_all(all_req)
+    all_runtimes = do_rds_client.rpc.runtime.get_all(all_req)
     assert len(all_runtimes) == 2
 
     assert runtime in all_runtimes
@@ -193,19 +193,27 @@ def test_runtime_crud(ds_rds_client: RDSClient):
         description="Docker Runtime",
         tags=["docker", "test"],
     )
-    runtime3 = ds_rds_client.rpc.runtime.create(runtime3_create)
+    runtime3 = do_rds_client.rpc.runtime.create(runtime3_create)
 
     get_req = GetOneRequest(uid=runtime3.uid)
-    fetched_runtime = ds_rds_client.rpc.runtime.get_one(get_req)
+    fetched_runtime = do_rds_client.rpc.runtime.get_one(get_req)
     assert fetched_runtime == runtime3
 
     all_req = GetAllRequest()
-    all_runtimes = ds_rds_client.rpc.runtime.get_all(all_req)
+    all_runtimes = do_rds_client.rpc.runtime.get_all(all_req)
     assert len(all_runtimes) == 3
 
     assert runtime in all_runtimes
     assert runtime2 in all_runtimes
     assert runtime3 in all_runtimes
+
+    # DS client get all runtimes
+    all_runtimes_ds = ds_rds_client.rpc.runtime.get_all(GetAllRequest())
+    runtime_uids_ds = {r.uid for r in all_runtimes_ds}
+    assert len(all_runtimes_ds) == 3
+    assert runtime.uid in runtime_uids_ds
+    assert runtime2.uid in runtime_uids_ds
+    assert runtime3.uid in runtime_uids_ds
 
 
 def test_custom_function_crud(do_rds_client: RDSClient):
@@ -230,15 +238,12 @@ def test_custom_function_crud(do_rds_client: RDSClient):
     assert custom_function.entrypoint_path.exists()
 
 
-def test_apply_update(ds_rds_client: RDSClient):
-    runtime: Runtime = ds_rds_client.runtime.create(
-        runtime_name="python3.12", runtime_kind="python"
-    )
-
+def test_apply_update():
+    # Test doesn't need actual runtime, just a runtime_id
     job = Job(
         dataset_name="test",
         user_code_id=uuid4(),
-        runtime_id=runtime.uid,
+        runtime_id=uuid4(),
     )
 
     # apply job update
@@ -264,7 +269,6 @@ def test_apply_update(ds_rds_client: RDSClient):
     other_job = Job(
         dataset_name="test",
         user_code_id=uuid4(),
-        runtime_id=runtime.uid,
     )
 
     with pytest.raises(ValueError) as e:

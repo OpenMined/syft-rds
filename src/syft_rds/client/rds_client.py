@@ -25,7 +25,16 @@ from syft_rds.client.rds_clients.runtime import RuntimeRDSClient
 from syft_rds.client.rds_clients.user_code import UserCodeRDSClient
 from syft_rds.client.rpc import RPCClient
 from syft_rds.client.utils import PathLike, copy_dir_contents, deprecation_warning
-from syft_rds.models import CustomFunction, Dataset, Job, JobStatus, Runtime, UserCode
+from syft_rds.models import (
+    CustomFunction,
+    Dataset,
+    Job,
+    JobStatus,
+    PythonRuntimeConfig,
+    Runtime,
+    RuntimeKind,
+    UserCode,
+)
 from syft_rds.models.base import ItemBase
 from syft_rds.server.app import create_app
 from syft_rds.syft_runtime.main import (
@@ -375,7 +384,19 @@ class RDSClient(RDSClientBase):
     def _get_config_for_job(self, job: Job, blocking: bool = True) -> JobConfig:
         user_code = self.user_code.get(job.user_code_id)
         dataset = self.dataset.get(name=job.dataset_name)
-        runtime = self.runtime.get(job.runtime_id)
+
+        # Get runtime or use default Python runtime
+        if job.runtime_id is not None:
+            runtime = self.runtime.get(job.runtime_id)
+        else:
+            # Create an ephemeral Python runtime for jobs without specific runtime
+            # TODO: create a default runtime on the server instead and reference it by name
+            runtime = Runtime(
+                name="default_python",
+                kind=RuntimeKind.PYTHON,
+                config=PythonRuntimeConfig(),
+            )
+
         runner_config = self.config.runner_config
         job_config = JobConfig(
             data_path=dataset.get_private_path(),

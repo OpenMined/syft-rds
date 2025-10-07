@@ -3,8 +3,8 @@ import pytest
 from tests.conftest import DS_PATH
 from tests.utils import create_dataset
 
+from syft_rds.client.exceptions import RDSValidationError
 from syft_rds.client.rds_clients.runtime import (
-    DEFAULT_RUNTIME_KIND,
     DEFAULT_RUNTIME_NAME,
     DEFAULT_DOCKERFILE_FILE_PATH,
 )
@@ -13,127 +13,133 @@ from syft_rds.models import JobStatus
 
 
 @pytest.mark.parametrize(
-    "submit_kwargs, expected_runtime_kind, expected_runtime_name",
+    "runtime_name, runtime_kind, runtime_config, submit_kwargs",
     [
-        # No custom runtime (default: Docker python)
+        # Default runtime (python)
         (
+            DEFAULT_RUNTIME_NAME,
+            "python",
+            None,
             {
-                "name": "My FL Flower Experiment",
-                "description": "Some description",
-                "user_code_path": f"{DS_PATH / "code"}",
+                "name": "Test Job - Default Runtime",
+                "description": "Job using default runtime",
+                "user_code_path": f"{DS_PATH / 'code'}",
                 "entrypoint": "main.py",
                 "dataset_name": "dummy",
+                "runtime_name": DEFAULT_RUNTIME_NAME,
             },
-            DEFAULT_RUNTIME_KIND,
-            DEFAULT_RUNTIME_NAME,
         ),
-        # Python runtime
+        # Python runtime with specific version
         (
+            "python3.12",
+            "python",
+            {"version": "3.12"},
             {
-                "name": "My FL Flower Experiment",
-                "description": "Some description",
-                "user_code_path": f"{DS_PATH / "code"}",
+                "name": "Test Job - Python 3.12",
+                "description": "Job using Python 3.12 runtime",
+                "user_code_path": f"{DS_PATH / 'code'}",
                 "entrypoint": "main.py",
                 "dataset_name": "dummy",
                 "runtime_name": "python3.12",
-                "runtime_kind": "python",
             },
-            "python",
-            "python3.12",
         ),
-        # Docker with a Dockerfile (with custom name)
+        # Docker runtime
         (
+            "my_docker_python",
+            "docker",
+            {"dockerfile": str(DEFAULT_DOCKERFILE_FILE_PATH)},
             {
-                "name": "My FL Flower Experiment",
-                "description": "Some description",
-                "user_code_path": f"{DS_PATH / "code"}",
+                "name": "Test Job - Docker",
+                "description": "Job using Docker runtime",
+                "user_code_path": f"{DS_PATH / 'code'}",
                 "entrypoint": "main.py",
                 "dataset_name": "dummy",
                 "runtime_name": "my_docker_python",
-                "runtime_kind": "docker",
-                "runtime_config": {"dockerfile": str(DEFAULT_DOCKERFILE_FILE_PATH)},
             },
-            "docker",
-            "my_docker_python",
-        ),
-        # Docker with a Dockerfile (no custom name)
-        (
-            {
-                "name": "My FL Flower Experiment",
-                "description": "Some description",
-                "user_code_path": f"{DS_PATH / "code"}",
-                "entrypoint": "main.py",
-                "dataset_name": "dummy",
-                "runtime_kind": "docker",
-                "runtime_config": {"dockerfile": str(DEFAULT_DOCKERFILE_FILE_PATH)},
-            },
-            "docker",
-            None,
-        ),
-        # Kubernetes with a pre-built image (no custom name)
-        (
-            {
-                "name": "My FL Flower Experiment",
-                "description": "Some description",
-                "user_code_path": f"{DS_PATH / "code"}",
-                "entrypoint": "main.py",
-                "dataset_name": "dummy",
-                "runtime_kind": "kubernetes",
-                "runtime_config": {
-                    "image": "myregistry/myimage:latest",
-                    "namespace": "research",
-                    "num_workers": 3,
-                },
-            },
-            "kubernetes",
-            None,
-        ),
-        # Kubernetes with a pre-built image (with custom name)
-        (
-            {
-                "name": "My FL Flower Experiment",
-                "description": "Some description",
-                "user_code_path": f"{DS_PATH / "code"}",
-                "entrypoint": "main.py",
-                "dataset_name": "dummy",
-                "runtime_name": "my_k8s_runtime",
-                "runtime_kind": "kubernetes",
-                "runtime_config": {
-                    "image": "myregistry/myimage:latest",
-                    "namespace": "syft-rds",
-                    "num_workers": 3,
-                },
-            },
-            "kubernetes",
-            "my_k8s_runtime",
         ),
     ],
 )
-def test_job_submit_with_custom_runtime(
+def test_job_submit_with_runtime(
     ds_rds_client: RDSClient,
     do_rds_client: RDSClient,
-    submit_kwargs,
-    expected_runtime_kind,
-    expected_runtime_name,
+    runtime_name: str,
+    runtime_kind: str,
+    runtime_config: dict | None,
+    submit_kwargs: dict,
 ):
+    """Test that DS can submit jobs using runtimes created by DO."""
     # DO: create dataset
     create_dataset(do_rds_client, name=submit_kwargs["dataset_name"])
 
-    # DS: submit job
+    # DO: create runtime
+    created_runtime = do_rds_client.runtime.create(
+        runtime_name=runtime_name,
+        runtime_kind=runtime_kind,
+        config=runtime_config,
+        description=f"{runtime_kind} runtime for testing",
+    )
+
+    # DS: submit job (using runtime by name)
     job = ds_rds_client.job.submit(**submit_kwargs)
 
     assert job is not None
     assert job.status == JobStatus.pending_code_review
+    assert job.runtime_id == created_runtime.uid
 
-    # DO: check runtime name and kind and config
+    # Verify runtime matches
     runtime = do_rds_client.runtime.get(uid=job.runtime_id)
+    assert runtime.name == runtime_name
+    assert runtime.kind == runtime_kind
 
-    assert runtime.kind == expected_runtime_kind
-    if expected_runtime_name:
-        assert runtime.name == expected_runtime_name
-    else:
-        assert runtime.name.startswith(f"{expected_runtime_kind}_")
 
-    # if "runtime_config" in submit_kwargs:
-    #     # runtime.config is an object, so we convert it to a dict for comparison
-    #     assert runtime.config.model_dump(mode="json") == submit_kwargs["runtime_config"]
+def test_job_submit_nonexistent_runtime(
+    ds_rds_client: RDSClient,
+    do_rds_client: RDSClient,
+):
+    """Test that DS cannot submit job with non-existent runtime."""
+    # DO: create dataset
+    create_dataset(do_rds_client, name="test_dataset")
+
+    # DS: try to submit job with non-existent runtime
+    with pytest.raises(
+        RDSValidationError,
+        match="Runtime 'nonexistent_runtime' does not exist",
+    ):
+        ds_rds_client.job.submit(
+            name="Test Job",
+            user_code_path=DS_PATH / "code",
+            entrypoint="main.py",
+            dataset_name="test_dataset",
+            runtime_name="nonexistent_runtime",
+        )
+
+
+def test_ds_cannot_create_runtime(ds_rds_client: RDSClient):
+    """Test that DS cannot create runtimes (only DO can)."""
+    with pytest.raises(PermissionError, match="must be the datasite admin"):
+        ds_rds_client.runtime.create(
+            runtime_name="unauthorized_runtime",
+            runtime_kind="python",
+        )
+
+
+def test_job_submit_without_runtime(
+    ds_rds_client: RDSClient,
+    do_rds_client: RDSClient,
+):
+    """Test that jobs can run without specifying a runtime."""
+    # DO: create dataset
+    create_dataset(do_rds_client, name="test_dataset")
+
+    # DS: submit job without runtime
+    job = ds_rds_client.job.submit(
+        name="No Runtime Job",
+        user_code_path=DS_PATH / "code",
+        entrypoint="main.py",
+        dataset_name="test_dataset",
+        # No runtime_name specified
+    )
+
+    assert job is not None
+    assert job.status == JobStatus.pending_code_review
+    assert job.runtime_id is None

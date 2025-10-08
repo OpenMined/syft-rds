@@ -52,7 +52,7 @@ T = TypeVar("T", bound=ItemBase)
 _RUNNING_RDS_SERVERS = {}
 
 
-def _is_server_running(host: str) -> bool:
+def rds_server_running(host: str) -> bool:
     """Check if syft-rds server is running for the given host."""
     try:
         # Create a minimal config and connection to test server health
@@ -89,7 +89,7 @@ def _wait_for_server(host: str, timeout: int = 30) -> bool:
     """Wait for server to be ready."""
     start_time = time.time()
     while time.time() - start_time < timeout:
-        if _is_server_running(host):
+        if rds_server_running(host):
             return True
         time.sleep(0.5)
     return False
@@ -101,7 +101,7 @@ def _ensure_server_running(
     """Ensure syft-rds server is running, starting it if needed."""
     host = syftbox_client.email
 
-    if _is_server_running(host):
+    if rds_server_running(host):
         return True
 
     if not auto_start:

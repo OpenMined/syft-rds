@@ -21,6 +21,7 @@ _test_verbosity := env_var_or_default('TEST_VERBOSE', 'sq')
     just --list
 
 # ---------------------------------------------------------------------------------------------------------------------
+
 # setup python environment
 [group('utils')]
 setup:
@@ -30,13 +31,21 @@ setup:
     source .venv/bin/activate
     echo "{{ _green }}✓ Setup complete!{{ _nc }}"
 
+# run jupyter lab
+[group('utils')]
+jupyter: setup
+    #!/bin/bash
+    source .venv/bin/activate
+    jupyter lab
+
+# ---------------------------------------------------------------------------------------------------------------------
+
 # remove all local files & directories
 [group('utils')]
 clean:
     #!/bin/sh
     echo "{{ _cyan }}Cleaning up local files and directories...{{ _nc }}"
 
-    # Remove root directories if they exist
     for dir in ./.clients ./dist ./.e2e ./.logs ./.pytest_cache; do
         if [ -d "$dir" ]; then
             echo "  {{ _red }}✗{{ _nc }} Removing $dir"
@@ -44,30 +53,23 @@ clean:
         fi
     done
 
-    # Remove all .server directories (including in subdirectories)
-    server_dirs=$(find . -type d -name ".server" 2>/dev/null)
-    if [ -n "$server_dirs" ]; then
-        echo "$server_dirs" | while read -r dir; do
-            echo "  {{ _red }}✗{{ _nc }} Removing $dir"
-            rm -rf "$dir"
-        done
-    fi
-
-    # Remove all .clients directories (including in subdirectories)
-    client_dirs=$(find . -type d -name ".clients" 2>/dev/null)
-    if [ -n "$client_dirs" ]; then
-        echo "$client_dirs" | while read -r dir; do
-            echo "  {{ _red }}✗{{ _nc }} Removing $dir"
-            rm -rf "$dir"
-        done
-    fi
-
-    # Remove __pycache__ directories
-    pycache_count=$(find . -type d -name "__pycache__" 2>/dev/null | wc -l)
-    if [ "$pycache_count" -gt 0 ]; then
-        echo "  {{ _red }}✗{{ _nc }} Removing $pycache_count __pycache__ directories"
-        find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-    fi
+    remove_dirs() {
+        dir_name=$1
+        dirs=$(find . -type d -name "$dir_name" 2>/dev/null)
+        if [ -n "$dirs" ]; then
+            echo "$dirs" | while read -r dir; do
+                echo "  {{ _red }}✗{{ _nc }} Removing $dir"
+                rm -rf "$dir"
+            done
+        fi
+    }
+    # Remove directories by name pattern
+    remove_dirs ".server"
+    remove_dirs ".clients"
+    remove_dirs ".syftbox"
+    remove_dirs "local_syftbox_network"
+    remove_dirs "__pycache__"
+    remove_dirs ".ipynb_checkpoints"
 
     echo "{{ _green }}✓ Clean complete!{{ _nc }}"
 

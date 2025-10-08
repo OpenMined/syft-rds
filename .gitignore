@@ -177,6 +177,7 @@ experimentals/
 tests/integration/assets/do/job_outputs/*
 notebooks/data/
 notebooks/quickstart/data/
+notebooks/quickstart/full_flow_notebook_test
 
 # VSCode
 .vscode/

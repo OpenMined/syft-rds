@@ -64,7 +64,7 @@ def ds_rds_client(
     rds_server: SyftEvents, ds_syftbox_client: SyftBoxClient
 ) -> RDSClient:
     return init_session(
-        DO_EMAIL,
+        host=DO_EMAIL,
         syftbox_client=ds_syftbox_client,
         mock_server=rds_server,
     )
@@ -75,7 +75,7 @@ def do_rds_client(
     rds_server: SyftEvents, do_syftbox_client: SyftBoxClient
 ) -> RDSClient:
     return init_session(
-        DO_EMAIL,
+        host=DO_EMAIL,
         syftbox_client=do_syftbox_client,
         mock_server=rds_server,
     )

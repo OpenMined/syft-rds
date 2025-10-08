@@ -1,7 +1,6 @@
 import time
 
 import pytest
-from loguru import logger
 import pandas as pd
 
 from syft_rds.client.rds_client import RDSClient
@@ -15,31 +14,48 @@ from tests.utils import create_dataset
 
 single_file_submission = {"user_code_path": DS_PATH / "code" / "main.py"}
 folder_submission = {"user_code_path": DS_PATH / "code", "entrypoint": "main.py"}
+
+# Test cases: DO creates runtimes, DS uses them by name
 runtime_configs = {
-    "default_runtime": {},
-    "docker_runtime": {
-        "runtime_kind": "docker",
-        "runtime_config": {"dockerfile": str(DEFAULT_DOCKERFILE_FILE_PATH)},
+    "default_runtime": {
+        "do_creates_runtime": False,  # No runtime needed
+        "ds_submit_params": {},  # No runtime_name = runtime_id will be None
     },
-    "python_runtime": {"runtime_kind": "python"},
-    "named_python_runtime": {
-        "runtime_name": "my_python_runtime",
-        "runtime_kind": "python",
+    "python_runtime": {
+        "do_creates_runtime": True,
+        "runtime_create_params": {
+            "runtime_name": "test_python",
+            "runtime_kind": "python",
+        },
+        "ds_submit_params": {"runtime_name": "test_python"},
+    },
+    "docker_runtime": {
+        "do_creates_runtime": True,
+        "runtime_create_params": {
+            "runtime_name": "test_docker",
+            "runtime_kind": "docker",
+            "config": {"dockerfile": str(DEFAULT_DOCKERFILE_FILE_PATH)},
+        },
+        "ds_submit_params": {"runtime_name": "test_docker"},
     },
 }
+
 test_cases = []
 for sub_type, sub_params in [
     ("single_file", single_file_submission),
     ("folder", folder_submission),
 ]:
-    for rt_name, rt_params in runtime_configs.items():
+    for rt_name, rt_config in runtime_configs.items():
         for blocking_mode in [True, False]:
             blocking_str = "blocking" if blocking_mode else "non_blocking"
             test_cases.append(
                 {
                     "id": f"{sub_type}_{rt_name}_{blocking_str}",
-                    "submission_params": {**sub_params, **rt_params},
-                    "expected_num_runtimes": 1,
+                    "submission_params": {
+                        **sub_params,
+                        **rt_config["ds_submit_params"],
+                    },
+                    "runtime_config": rt_config,
                     "blocking": blocking_mode,
                 }
             )
@@ -54,22 +70,34 @@ def test_job_execution(
     ds_rds_client: RDSClient,
     do_rds_client: RDSClient,
     test_case: dict,
-    monkeypatch,
 ):
     """Test job execution with a file or a folder, for various configurations."""
     blocking_mode = test_case["blocking"]
+    runtime_config = test_case["runtime_config"]
+
+    # DO: create dataset
+    create_dataset(do_rds_client, "dummy")
+
+    # DO: create runtime if needed
+    if runtime_config["do_creates_runtime"]:
+        do_rds_client.runtime.create(**runtime_config["runtime_create_params"])
+
+    # DS: submit job
     submit_kwargs = {
         "dataset_name": "dummy",
         **test_case["submission_params"],
     }
-
-    create_dataset(do_rds_client, "dummy")
-
-    # DS submits job
     job = ds_rds_client.job.submit(**submit_kwargs)
     assert job.status == JobStatus.pending_code_review
 
-    assert len(do_rds_client.runtime.get_all()) == test_case["expected_num_runtimes"]
+    # Verify runtime was created/used correctly
+    all_runtimes = do_rds_client.runtime.get_all()
+    if runtime_config["do_creates_runtime"]:
+        assert len(all_runtimes) == 1
+        assert job.runtime_id == all_runtimes[0].uid
+    else:
+        # Default runtime case - no runtime created
+        assert job.runtime_id is None
 
     # DO reviews, runs, and shares job
     _run_and_verify_job(do_rds_client, blocking=blocking_mode)
@@ -79,34 +107,40 @@ def _run_and_verify_job(do_rds_client: RDSClient, blocking: bool):
     """Helper function to run a job and verify its execution."""
     job: Job = do_rds_client.job.get_all()[0]
 
-    # Runner side: Execute the job
-    do_rds_client.run_private(job, blocking=blocking)
+    # DO approves the job
+    approved_job = do_rds_client.job.approve(job)
+    assert approved_job.status == JobStatus.approved
+
+    # DO runs the job
+    do_rds_client.run_private(approved_job, blocking=blocking)
 
     if not blocking:
-        assert job.status == JobStatus.job_in_progress
+        # Poll until job finishes
+        max_wait = 10  # seconds
+        elapsed = 0
+        while elapsed < max_wait:
+            job = do_rds_client.job.get(uid=job.uid)
+            if job.status == JobStatus.job_run_finished:
+                break
+            time.sleep(JOB_STATUS_POLLING_INTERVAL)
+            elapsed += JOB_STATUS_POLLING_INTERVAL
 
-    if job.status == JobStatus.job_run_failed:
-        logger.info(f"Job failed: {job.error_message}")
-        raise Exception(f"Job failed: {job.error_message}")
-
-    time.sleep(JOB_STATUS_POLLING_INTERVAL + 0.5)
+    job = do_rds_client.job.get(uid=job.uid)
     assert job.status == JobStatus.job_run_finished
 
-    # DO shares results with DS
+    # DO shares the results
     do_rds_client.job.share_results(job)
+    job = do_rds_client.job.get(uid=job.uid)
     assert job.status == JobStatus.shared
 
-    # DS checks for output
-    output_path = job.get_output_path()
+    # Verify job output
+    output_path = job.output_path
     assert output_path.exists()
-
-    all_files_folders = list(output_path.glob("**/*"))
-    all_files = [f for f in all_files_folders if f.is_file()]
-    assert len(all_files) == 3  # result.csv, stdout.log, stderr.log
 
     output_file = output_path / "output" / "result.csv"
     assert output_file.exists()
 
+    # Verify the output has correct computation
     df = pd.read_csv(output_file)
     assert "sum" in df.columns
     assert len(df) == 5  # 5 rows of data

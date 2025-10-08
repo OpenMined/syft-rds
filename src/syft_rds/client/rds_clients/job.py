@@ -16,7 +16,6 @@ from syft_rds.models import (
     JobCreate,
     JobStatus,
     JobUpdate,
-    Runtime,
     UserCode,
 )
 from syft_rds.models.custom_function_models import CustomFunction
@@ -36,8 +35,6 @@ class JobRDSClient(RDSClientModule[Job]):
         tags: Optional[list[str]] = None,
         custom_function: Optional[Union[CustomFunction, UUID]] = None,
         runtime_name: Optional[str] = None,
-        runtime_kind: Optional[str] = None,
-        runtime_config: Optional[dict] = None,
         enclave: str = "",
     ) -> Job:
         """`submit` is a convenience method to create both a UserCode and a Job in one call."""
@@ -58,11 +55,17 @@ class JobRDSClient(RDSClientModule[Job]):
             code_path=user_code_path, entrypoint=entrypoint
         )
 
-        runtime = self.rds.runtime.create(
-            runtime_name=runtime_name,
-            runtime_kind=runtime_kind,
-            config=runtime_config,
-        )
+        if runtime_name is not None:
+            try:
+                self.rds.runtime.get(name=runtime_name)
+            except ValueError:
+                available_runtimes = self.rds.runtime.get_all()
+                available_names = [r.name for r in available_runtimes]
+                raise RDSValidationError(
+                    f"Runtime '{runtime_name}' does not exist on {self.rds.host}. "
+                    f"Available runtimes: {available_names}. "
+                    f"Ask the data owner to create the runtime first."
+                )
 
         job = self.create(
             name=name,
@@ -71,7 +74,7 @@ class JobRDSClient(RDSClientModule[Job]):
             dataset_name=dataset_name,
             tags=tags,
             custom_function=custom_function,
-            runtime=runtime,
+            runtime_name=runtime_name,
             enclave=enclave,
         )
 
@@ -146,6 +149,20 @@ class JobRDSClient(RDSClientModule[Job]):
                 f"Invalid user_code type {type(user_code)}. Must be UserCode, UUID, or str"
             )
 
+    def _resolve_runtime_id(self, runtime_name: Optional[str]) -> Optional[UUID]:
+        if runtime_name is None:
+            return None
+        runtime = self.rds.runtime.get(name=runtime_name)
+        if not runtime:
+            available_runtimes = self.rds.runtime.get_all()
+            available_names = [r.name for r in available_runtimes]
+            raise RDSValidationError(
+                f"Runtime '{runtime_name}' does not exist on {self.rds.host}. "
+                f"Available runtimes: {available_names}. "
+                f"Ask the data owner to create the runtime first."
+            )
+        return runtime.uid
+
     def _verify_enclave(self, enclave: str) -> None:
         """Verify that the enclave is valid."""
         client: Client = self.rpc.connection.sender_client
@@ -161,15 +178,16 @@ class JobRDSClient(RDSClientModule[Job]):
         self,
         user_code: Union[UserCode, UUID],
         dataset_name: str,
-        runtime: Runtime,
         name: Optional[str] = None,
         description: Optional[str] = None,
         tags: Optional[list[str]] = None,
         custom_function: Optional[Union[CustomFunction, UUID]] = None,
+        runtime_name: Optional[str] = None,
         enclave: str = "",
     ) -> Job:
         user_code_id = self._resolve_usercode_id(user_code)
         custom_function_id = self._resolve_custom_func_id(custom_function)
+        runtime_id = self._resolve_runtime_id(runtime_name)
 
         if enclave:
             self._verify_enclave(enclave)
@@ -179,7 +197,7 @@ class JobRDSClient(RDSClientModule[Job]):
             description=description,
             tags=tags if tags is not None else [],
             user_code_id=user_code_id,
-            runtime_id=runtime.uid,
+            runtime_id=runtime_id,
             dataset_name=dataset_name,
             custom_function_id=custom_function_id,
             enclave=enclave,

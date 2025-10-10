@@ -14,6 +14,7 @@ from syft_rds.client.client_registry import GlobalClientRegistry
 from syft_rds.client.connection import get_connection
 from syft_rds.client.local_store import LocalStore
 from syft_rds.client.rds_clients.base import (
+    ClientRunnerConfig,
     RDSClientBase,
     RDSClientConfig,
     RDSClientModule,
@@ -234,8 +235,28 @@ def init_session(
     Returns:
         RDSClient: The configured RDS client instance.
     """
-    config = RDSClientConfig(host=host, **config_kwargs)
     syftbox_client = _resolve_syftbox_client(syftbox_client, syftbox_client_config_path)
+
+    # Compute absolute job output folder based on SyftBox structure
+    # Store in .syftbox/logs/rds/<email>/jobs/ to keep sensitive logs local and never synced
+    job_output_folder = (
+        syftbox_client.workspace.data_dir.parent
+        / ".syftbox"
+        / "logs"
+        / "rds"
+        / syftbox_client.email
+        / "jobs"
+    )
+
+    # Set runner config with absolute path if not provided
+    if "runner_config" not in config_kwargs:
+        config_kwargs["runner_config"] = ClientRunnerConfig(
+            job_output_folder=job_output_folder
+        )
+    elif not hasattr(config_kwargs["runner_config"], "job_output_folder"):
+        config_kwargs["runner_config"].job_output_folder = job_output_folder
+
+    config = RDSClientConfig(host=host, **config_kwargs)
 
     # Auto-start server if not using mock and auto_start_server is enabled
     use_mock = mock_server is not None
@@ -398,6 +419,12 @@ class RDSClient(RDSClientBase):
             )
 
         runner_config = self.config.runner_config
+        if runner_config.job_output_folder is None:
+            raise ValueError(
+                "job_output_folder is not configured. "
+                "Please use init_session() to properly initialize the RDSClient."
+            )
+
         job_config = JobConfig(
             data_path=dataset.get_private_path(),
             function_folder=user_code.local_dir,

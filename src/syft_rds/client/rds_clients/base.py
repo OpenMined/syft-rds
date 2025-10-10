@@ -24,9 +24,7 @@ if TYPE_CHECKING:
 class ClientRunnerConfig(BaseModel):
     runtime: Optional[Runtime] = None
     timeout: int = 60
-    job_output_folder: Path = Field(
-        default_factory=lambda: Path(".server/syft-rds-jobs")
-    )
+    job_output_folder: Optional[Path] = None
 
 
 class RDSClientConfig(BaseModel):

@@ -394,7 +394,7 @@ class RDSClient(RDSClientBase):
             runtime = Runtime(
                 name="default_python",
                 kind=RuntimeKind.PYTHON,
-                config=PythonRuntimeConfig(),
+                config=PythonRuntimeConfig(use_uv=True),
             )
 
         runner_config = self.config.runner_config

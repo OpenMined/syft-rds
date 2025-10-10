@@ -326,11 +326,30 @@ class PythonRunner(JobRunner):
         )
 
     def _prepare_run_command(self, job_config: JobConfig) -> list[str]:
-        return [
-            *job_config.runtime.cmd,
-            str(Path(job_config.function_folder) / job_config.args[0]),
-            *job_config.args[1:],
-        ]
+        script_path = Path(job_config.function_folder) / job_config.args[0]
+
+        # Check if we should use uv run (when pyproject.toml exists and use_uv=True)
+        runtime_config = job_config.runtime.config
+        pyproject_path = job_config.function_folder / "pyproject.toml"
+
+        if runtime_config.use_uv and pyproject_path.exists():
+            logger.debug(f"Using 'uv run' for job execution (found {pyproject_path})")
+            return [
+                "uv",
+                "run",
+                "--directory",
+                str(job_config.function_folder),
+                str(script_path),
+                *job_config.args[1:],
+            ]
+        else:
+            # Fallback to regular python execution
+            logger.debug("Using standard Python execution")
+            return [
+                *job_config.runtime.cmd,
+                str(script_path),
+                *job_config.args[1:],
+            ]
 
 
 class DockerRunner(JobRunner):

@@ -214,6 +214,7 @@ class Job(ItemBase):
 
     @property
     def output_path(self) -> Path:
+        """Path to shared job output (after job.share_results())."""
         return self.get_output_path()
 
     def get_output_path(self) -> Path:

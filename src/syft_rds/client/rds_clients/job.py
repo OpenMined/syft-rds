@@ -243,13 +243,13 @@ class JobRDSClient(RDSClientModule[Job]):
         self, job: Job, output_dir: Optional[PathLike] = None
     ) -> JobResults:
         if output_dir is None:
-            output_dir = self.config.runner_config.job_output_folder / job.uid.hex
+            output_dir = self._get_job_output_folder() / job.uid.hex
         return self._get_results_from_dir(job, output_dir)
 
     def share_results(self, job: Job) -> None:
         if not self.is_admin:
             raise RDSValidationError("Only admins can share results")
-        job_results_folder = self.config.runner_config.job_output_folder / job.uid.hex
+        job_results_folder = self._get_job_output_folder() / job.uid.hex
         output_path = self._share_result_files(job, job_results_folder)
         updated_job = self.rpc.job.update(
             JobUpdate(
@@ -288,6 +288,37 @@ class JobRDSClient(RDSClientModule[Job]):
                 f"Job {job.uid} is not shared. Current status: {job.status}"
             )
         return self._get_results_from_dir(job, job.output_path)
+
+    def get_logs(self, job: Union[Job, UUID]) -> dict[str, str]:
+        """Get the stdout and stderr logs for a job.
+
+        Args:
+            job: Job object or UUID of the job
+
+        Returns:
+            dict with 'stdout' and 'stderr' keys containing log contents
+
+        Raises:
+            ValueError: If logs directory doesn't exist
+        """
+        if isinstance(job, UUID):
+            job = self.get(uid=job, mode="local")
+
+        logs_dir = (self._get_job_output_folder() / job.uid.hex / "logs").resolve()
+
+        if not logs_dir.exists():
+            raise ValueError(
+                f"Logs directory does not exist for job {job.uid} at {logs_dir}. "
+                f"Job may not have been executed yet."
+            )
+
+        stdout_file = logs_dir / "stdout.log"
+        stderr_file = logs_dir / "stderr.log"
+
+        return {
+            "stdout": stdout_file.read_text() if stdout_file.exists() else "",
+            "stderr": stderr_file.read_text() if stderr_file.exists() else "",
+        }
 
     def approve(self, job: Job) -> Job:
         if not self.is_admin:
@@ -411,7 +442,7 @@ class JobRDSClient(RDSClientModule[Job]):
                 logger.debug(f"Deleted job output path: {job_output_path}")
 
         # Delete job results from runner output folder
-        job_runner_output = self.config.runner_config.job_output_folder / job.uid.hex
+        job_runner_output = self._get_job_output_folder() / job.uid.hex
         if job_runner_output.exists():
             shutil.rmtree(job_runner_output)
             logger.debug(f"Deleted job runner output: {job_runner_output}")
@@ -451,3 +482,13 @@ class JobRDSClient(RDSClientModule[Job]):
                 logger.debug(f"Deleted orphaned UserCode {user_code_id}")
         except Exception as e:
             logger.warning(f"Failed to delete orphaned UserCode {user_code_id}: {e}")
+
+    def _get_job_output_folder(self) -> Path:
+        """Get the job output folder, raising an error if not configured."""
+        job_output_folder = self.config.runner_config.job_output_folder
+        if job_output_folder is None:
+            raise RDSValidationError(
+                "job_output_folder is not configured. "
+                "Please use init_session() to properly initialize the RDSClient."
+            )
+        return job_output_folder

@@ -289,6 +289,39 @@ class JobRDSClient(RDSClientModule[Job]):
             )
         return self._get_results_from_dir(job, job.output_path)
 
+    def get_logs(self, job: Union[Job, UUID]) -> dict[str, str]:
+        """Get the stdout and stderr logs for a job.
+
+        Args:
+            job: Job object or UUID of the job
+
+        Returns:
+            dict with 'stdout' and 'stderr' keys containing log contents
+
+        Raises:
+            ValueError: If logs directory doesn't exist
+        """
+        if isinstance(job, UUID):
+            job = self.get(uid=job, mode="local")
+
+        logs_dir = (
+            self.config.runner_config.job_output_folder / job.uid.hex / "logs"
+        ).resolve()
+
+        if not logs_dir.exists():
+            raise ValueError(
+                f"Logs directory does not exist for job {job.uid} at {logs_dir}. "
+                f"Job may not have been executed yet."
+            )
+
+        stdout_file = logs_dir / "stdout.log"
+        stderr_file = logs_dir / "stderr.log"
+
+        return {
+            "stdout": stdout_file.read_text() if stdout_file.exists() else "",
+            "stderr": stderr_file.read_text() if stderr_file.exists() else "",
+        }
+
     def approve(self, job: Job) -> Job:
         if not self.is_admin:
             raise RDSValidationError("Only admins can approve jobs")

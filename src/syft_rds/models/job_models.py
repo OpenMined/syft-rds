@@ -8,7 +8,7 @@ from uuid import UUID
 
 from IPython.display import HTML, display
 from loguru import logger
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from syft_core import SyftBoxURL
 
 from syft_rds.display_utils.html_format import create_html_repr
@@ -42,8 +42,7 @@ class JobErrorKind(str, enum.Enum):
 
 
 class Job(ItemBase):
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
     __schema_name__ = "job"
     __table_extra_fields__ = [

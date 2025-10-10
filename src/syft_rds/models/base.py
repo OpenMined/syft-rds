@@ -13,7 +13,7 @@ from typing_extensions import (
 )
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from syft_core import Client as SyftBoxClient
 
 from syft_rds.display_utils.formatter import (
@@ -33,14 +33,13 @@ class ItemBase(BaseModel, ABC):
     __schema_name__: str
     __display_formatter__: ClassVar[PydanticFormatter] = ANSIPydanticFormatter()
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     uid: UUID = Field(default_factory=uuid4)
     created_by: str | None = None
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
     client_id: UUID | None = None
-
-    class Config:
-        arbitrary_types_allowed: bool = True
 
     def register_client(self, client: "RDSClient") -> Self:
         self._register_client_id_recursive(client.uid)

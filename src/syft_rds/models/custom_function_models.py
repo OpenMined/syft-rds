@@ -43,7 +43,7 @@ class CustomFunction(ItemBase):
             raise ValueError("dir_url is not set")
         client = self._client
         return self.dir_url.to_local_path(
-            datasites_path=client._syftbox_client.datasites
+            datasites_path=client.syftbox_client.datasites
         )
 
     def has_readme(self) -> bool:

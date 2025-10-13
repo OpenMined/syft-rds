@@ -15,7 +15,7 @@ def ensure_is_admin(func: Callable) -> Callable:
         if not self.is_admin:
             raise PermissionError(
                 f"You must be the datasite admin to perform this operation. "
-                f"Your SyftBox email: '{self._syftbox_client.email}'. "
+                f"Your SyftBox email: '{self.syftbox_client.email}'. "
                 f"Host email: '{self.config.host}'"
             )
         return func(self, *args, **kwargs)

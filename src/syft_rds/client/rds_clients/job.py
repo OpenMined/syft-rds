@@ -263,7 +263,7 @@ class JobRDSClient(RDSClientModule[Job]):
 
     def _share_result_files(self, job: Job, job_results_folder: Path) -> Path:
         syftbox_output_path = job.output_url.to_local_path(
-            self.rds._syftbox_client.datasites
+            self.rds.syftbox_client.datasites
         )
         if not syftbox_output_path.exists():
             syftbox_output_path.mkdir(parents=True)
@@ -435,7 +435,7 @@ class JobRDSClient(RDSClientModule[Job]):
         # Delete job output folder using the job's output_url
         if job.output_url:
             job_output_path = job.output_url.to_local_path(
-                self._syftbox_client.datasites
+                self.syftbox_client.datasites
             )
             if job_output_path.exists():
                 shutil.rmtree(job_output_path)
@@ -471,7 +471,7 @@ class JobRDSClient(RDSClientModule[Job]):
             # Delete UserCode files
             if usercode.dir_url:
                 usercode_path = usercode.dir_url.to_local_path(
-                    self._syftbox_client.datasites
+                    self.syftbox_client.datasites
                 )
                 if usercode_path.exists():
                     shutil.rmtree(usercode_path)

@@ -45,7 +45,7 @@ from syft_rds.syft_runtime.main import (
     TextUI,
     get_runner_cls,
 )
-from syft_rds.utils.constants import JOB_STATUS_POLLING_INTERVAL
+from syft_rds.utils.constants import JOB_STATUS_POLLING_INTERVAL, get_datasite_url
 
 T = TypeVar("T", bound=ItemBase)
 
@@ -331,6 +331,11 @@ class RDSClient(RDSClientBase):
     @property
     def uid(self) -> UUID:
         return self.config.uid
+
+    @property
+    def host_datasite_url(self) -> str:
+        """URL to the host's datasite on syftbox.net"""
+        return get_datasite_url(self.config.host)
 
     @property
     @deprecation_warning(reason="client.jobs has been renamed to client.job")

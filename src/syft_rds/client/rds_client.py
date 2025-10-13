@@ -5,9 +5,14 @@ import time
 from pathlib import Path
 from typing import Optional, Type, TypeVar
 from uuid import UUID
+import shutil
 
 from loguru import logger
+from pydantic import EmailStr, TypeAdapter, ValidationError
 from syft_core import Client as SyftBoxClient
+from syft_core import SyftClientConfig
+from syft_core.constants import DEFAULT_CONFIG_PATH
+from syft_crypto import ensure_bootstrap
 from syft_event import SyftEvents
 
 from syft_rds.client.client_registry import GlobalClientRegistry
@@ -53,12 +58,76 @@ T = TypeVar("T", bound=ItemBase)
 _RUNNING_RDS_SERVERS = {}
 
 
-def rds_server_running(host: str) -> bool:
-    """Check if syft-rds server is running for the given host."""
+def _validate_email(email: str, param_name: str = "email") -> None:
+    """
+    Validate that a string is a valid email address using Pydantic's EmailStr.
+
+    Args:
+        email (str): The email address to validate
+        param_name (str): Name of the parameter (for error messages)
+
+    Raises:
+        ValueError: If the email format is invalid
+    """
+    email_adapter = TypeAdapter(EmailStr)
+    try:
+        email_adapter.validate_python(email)
+    except ValidationError as e:
+        raise ValueError(f"Invalid {param_name} format '{email}': {e}")
+
+
+def _prepare_local_syftbox_dir(
+    syftbox_dir: PathLike, reset: bool = False
+) -> Optional[Path]:
+    """Prepare a local syftbox directory for local testing."""
+    syftbox_path = Path(syftbox_dir).expanduser().resolve()
+    dot_syftbox_path = syftbox_path.parent / ".syftbox"
+
+    # if syftbox_path is ~/SyftBox and .syftbox is ~/.syftbox, we don't want to reset
+    if (
+        syftbox_path == Path.home() / "SyftBox"
+        and dot_syftbox_path == Path.home() / ".syftbox"
+    ):
+        logger.warning(
+            f"Working with production syftbox directory {syftbox_path} and {dot_syftbox_path}. Return!"
+        )
+        return None
+
+    if reset and dot_syftbox_path.is_dir():
+        try:
+            shutil.rmtree(dot_syftbox_path)
+        except Exception as e:
+            logger.warning(f"Failed to reset directory {dot_syftbox_path}: {e}")
+    dot_syftbox_path.mkdir(parents=True, exist_ok=True)
+
+    if reset and syftbox_path.is_dir():
+        try:
+            shutil.rmtree(syftbox_path)
+        except Exception as e:
+            logger.warning(f"Failed to reset directory {syftbox_path}: {e}")
+    syftbox_path.mkdir(parents=True, exist_ok=True)
+
+    return syftbox_path
+
+
+def rds_server_running(
+    host: str, syftbox_client: Optional[SyftBoxClient] = None
+) -> bool:
+    """Check if syft-rds server is running for the given host.
+
+    Args:
+        host (str): Email of the host to check
+        syftbox_client (SyftBoxClient, optional): SyftBox client to use for the connection.
+            If not provided, will try to load from default location.
+
+    Returns:
+        bool: True if server is running and responding to health checks
+    """
     try:
         # Create a minimal config and connection to test server health
         config = RDSClientConfig(host=host)
-        syftbox_client = _resolve_syftbox_client()
+        if syftbox_client is None:
+            syftbox_client = _resolve_syftbox_client()
         connection = get_connection(syftbox_client, None, mock=False)
         rpc_client = RPCClient(config, connection)
 
@@ -71,10 +140,13 @@ def rds_server_running(host: str) -> bool:
 
 def init_session(
     host: str,
+    email: str,
     syftbox_client: Optional[SyftBoxClient] = None,
-    mock_server: Optional[SyftEvents] = None,
     syftbox_client_config_path: Optional[PathLike] = None,
-    start_rds_server: bool = False,
+    mock_server: Optional[SyftEvents] = None,
+    syftbox_dir: Optional[PathLike] = None,
+    start_syft_event_server: bool = True,
+    reset: bool = False,
     **config_kwargs,
 ) -> "RDSClient":
     """
@@ -82,27 +154,53 @@ def init_session(
 
     Args:
         host (str): The email of the remote datasite
+        email (str): Email of the user
         syftbox_client (SyftBoxClient, optional): Pre-configured SyftBox client instance.
             Takes precedence over syftbox_client_config_path.
-        mock_server (SyftEvents, optional): Server for testing. If provided, uses
-            a mock in-process RPC connection.
         syftbox_client_config_path (PathLike, optional): Path to client config file.
             Only used if syftbox_client is not provided.
-        start_rds_server (bool, optional): Whether to automatically start syft-rds server
-            if it's not running (same as `uv run syft-rds server`). Defaults to False.
+        mock_server (SyftEvents, optional): Server for testing. If provided, uses
+            a mock in-process RPC connection.
+        syftbox_dir: (PathLike, optional): Custom directory for SyftBox client files.
+            For local testing only, not recommended for production use.
+        start_syft_event_server (bool): Whether to start the syft event server to detect
+            and process incoming RPC requests.
+        reset (bool): Whether to reset the syftbox_dir if it exists.
         **config_kwargs: Additional configuration options for the RDSClient.
 
     Returns:
         RDSClient: The configured RDS client instance.
     """
-    syftbox_client = _resolve_syftbox_client(syftbox_client, syftbox_client_config_path)
+    # Validate email formats
+    _validate_email(host, param_name="host")
+    _validate_email(email, param_name="email")
 
-    # Compute absolute job output folder based on SyftBox structure
-    # Store in .syftbox/logs/rds/<email>/jobs/ to keep sensitive logs local and never synced
+    if syftbox_dir is not None:
+        logger.debug(
+            f"Using custom syftbox_dir: {syftbox_dir} (for local testing only)"
+        )
+        syftbox_dir = _prepare_local_syftbox_dir(syftbox_dir, reset)
+        syftbox_client_config_path = (
+            SyftClientConfig(
+                email=email,
+                server_url="http://localhost:8080",  # Explicit server_url for proper bootstrap
+                client_url="http://localhost:5000",  # not used, just for local dev
+                path=syftbox_dir.parent / ".syftbox" / f"{email}.json",
+                data_dir=syftbox_dir,
+            )
+            .save()
+            .path
+        )
+
+    # Resolve SyftBox client
+    syftbox_client: SyftBoxClient = _resolve_syftbox_client(
+        syftbox_client, syftbox_client_config_path
+    )
+
+    # Store job output folder in .syftbox/rds/<email>/jobs/ to keep sensitive logs local and never synced
     job_output_folder = (
         syftbox_client.workspace.data_dir.parent
         / ".syftbox"
-        / "logs"
         / "rds"
         / syftbox_client.email
         / "jobs"
@@ -118,15 +216,29 @@ def init_session(
 
     config = RDSClientConfig(host=host, **config_kwargs)
 
-    # Auto-start server if not using mock and auto_start_server is enabled
     use_mock = mock_server is not None
-    if not use_mock and start_rds_server:
-        if host != syftbox_client.email:
-            raise ValueError(
-                f"Cannot start syft-rds server for a different host. Host email: {host}. Syftbox client email: {syftbox_client.email}"
+    connection = get_connection(syftbox_client, mock_server, mock=use_mock)
+    rpc_client = RPCClient(config, connection)
+    local_store = LocalStore(config, syftbox_client)
+
+    rds_client = RDSClient(config, rpc_client, local_store)
+    logger.info(
+        f"Initialized RDSClient for host {host} as user {syftbox_client.email}. Is admin: {rds_client.is_admin}"
+    )
+
+    # Bootstrap encryption keys for admin users
+    if rds_client.is_admin:
+        try:
+            ensure_bootstrap(syftbox_client)
+        except Exception as e:
+            logger.error(
+                f"Failed to ensure bootstrap for admin user {syftbox_client.email}: {e}"
             )
+
+    # start the syft event server if user is admin
+    if not use_mock and rds_client.is_admin and start_syft_event_server:
         server_started = _ensure_server_running(
-            syftbox_client=syftbox_client, auto_start=start_rds_server
+            syftbox_client=syftbox_client, auto_start=start_syft_event_server
         )
         if not server_started:
             logger.warning(
@@ -134,10 +246,7 @@ def init_session(
                 "You may need to start it manually by running `uv run syft-rds server` in a separate terminal."
             )
 
-    connection = get_connection(syftbox_client, mock_server, mock=use_mock)
-    rpc_client = RPCClient(config, connection)
-    local_store = LocalStore(config, syftbox_client)
-    return RDSClient(config, rpc_client, local_store)
+    return rds_client
 
 
 class RDSClient(RDSClientBase):
@@ -453,14 +562,36 @@ def _start_server_thread(syftbox_client: SyftBoxClient) -> dict:
     return {"thread": thread, "server": rds_app}
 
 
-def _wait_for_server(host: str, timeout: int = 30) -> bool:
-    """Wait for server to be ready."""
+def _wait_for_server(
+    host: str,
+    syftbox_client: SyftBoxClient,
+    timeout: int = 10,
+    check_interval: float = 1.0,
+) -> bool:
+    """Wait for server to be ready.
+
+    Args:
+        host (str): Email of the host to wait for
+        syftbox_client (SyftBoxClient): SyftBox client to use for health checks
+        timeout (int): Maximum seconds to wait. Defaults to 10.
+        check_interval (float): Seconds between health checks. Defaults to 1.0.
+
+    Returns:
+        bool: True if server started within timeout, False otherwise
+    """
     start_time = time.time()
+    attempt = 0
     while time.time() - start_time < timeout:
-        if rds_server_running(host):
-            logger.debug(f"syft-rds server is running for {host}")
+        attempt += 1
+        if rds_server_running(host, syftbox_client):
+            logger.debug(
+                f"syft-rds server is running for {host} (took {attempt} attempts)"
+            )
             return True
-        time.sleep(0.5)
+        time.sleep(check_interval)
+    logger.warning(
+        f"Server failed to start after {attempt} health check attempts over {timeout}s"
+    )
     return False
 
 
@@ -470,29 +601,27 @@ def _ensure_server_running(
     """Ensure syft-rds server is running, starting it if needed."""
     host = syftbox_client.email
 
-    if rds_server_running(host):
-        return True
-
     if not auto_start:
         return False
 
     # Check if we already have a server thread for this client
     if host in _RUNNING_RDS_SERVERS and _RUNNING_RDS_SERVERS[host]["thread"].is_alive():
         # Server thread exists, wait for it to be ready
-        if _wait_for_server(host):
+        if _wait_for_server(host, syftbox_client):
             return True
 
-    logger.info(f"syft-rds server not running for {host}, starting automatically...")
-
     # Start new server thread
+    logger.info(f"syft-rds server not running for {host}, starting automatically...")
     server_info = _start_server_thread(syftbox_client)
+
+    # Register the server thread
     _RUNNING_RDS_SERVERS[host] = server_info
 
     # Register cleanup on exit
     atexit.register(_cleanup_servers)
 
     # Wait for server to be ready
-    if _wait_for_server(host):
+    if _wait_for_server(host, syftbox_client):
         logger.success(f"syft-rds server is ready for {host}")
         return True
     else:
@@ -555,23 +684,33 @@ def _resolve_syftbox_client(
     Resolve a SyftBox client from either a provided instance or config path.
 
     Args:
-        syftbox_client (SyftBoxClient, optional): Pre-configured client instance
-        config_path (Union[str, Path], optional): Path to client config file
+        syftbox_client (SyftBoxClient, optional): Pre-configured client instance.
+            If provided, config_path is ignored.
+        config_path (PathLike, optional): Path to client config file.
+            Used only if syftbox_client is not provided.
 
     Returns:
-        SyftBoxClient: The SyftBox client instance
+        SyftBoxClient: The resolved SyftBox client instance
 
     Raises:
-        ValueError: If both syftbox_client and config_path are provided
+        ValueError: If both syftbox_client and config_path are provided and do not match
     """
     if (
         syftbox_client
         and config_path
         and syftbox_client.config_path.resolve() != Path(config_path).resolve()
     ):
-        raise ValueError("Cannot provide both syftbox_client and config_path.")
+        raise ValueError("syftbox_client.config_path and config_path must match.")
 
-    if syftbox_client:
+    # Use provided client if available
+    if syftbox_client is not None:
         return syftbox_client
+
+    # Load client from config path
+    # if no config path provided, load from default location
+    if config_path is None:
+        logger.debug(f"Loading SyftBox client from config path: {DEFAULT_CONFIG_PATH}")
+    else:
+        logger.debug(f"Loading SyftBox client from provided config path: {config_path}")
 
     return SyftBoxClient.load(filepath=config_path)

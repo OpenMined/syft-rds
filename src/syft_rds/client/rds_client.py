@@ -69,146 +69,6 @@ def rds_server_running(host: str) -> bool:
         return False
 
 
-def _start_server_thread(syftbox_client: SyftBoxClient) -> dict:
-    """Start syft-rds server in a background thread."""
-    rds_app: SyftEvents = create_app(client=syftbox_client)
-
-    def run_server():
-        try:
-            logger.info(f"Starting syft-rds server for {syftbox_client.email}")
-            rds_app.run_forever()
-        except Exception as e:
-            logger.error(f"Server thread failed: {e}")
-
-    thread = threading.Thread(target=run_server, daemon=True)
-    thread.start()
-
-    return {"thread": thread, "server": rds_app}
-
-
-def _wait_for_server(host: str, timeout: int = 30) -> bool:
-    """Wait for server to be ready."""
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        if rds_server_running(host):
-            return True
-        time.sleep(0.5)
-    return False
-
-
-def _ensure_server_running(
-    syftbox_client: SyftBoxClient, auto_start: bool = False
-) -> bool:
-    """Ensure syft-rds server is running, starting it if needed."""
-    host = syftbox_client.email
-
-    if rds_server_running(host):
-        return True
-
-    if not auto_start:
-        return False
-
-    # Check if we already have a server thread for this client
-    if host in _RUNNING_RDS_SERVERS and _RUNNING_RDS_SERVERS[host]["thread"].is_alive():
-        # Server thread exists, wait for it to be ready
-        if _wait_for_server(host):
-            return True
-
-    logger.info(f"syft-rds server not running for {host}, starting automatically...")
-
-    # Start new server thread
-    server_info = _start_server_thread(syftbox_client)
-    _RUNNING_RDS_SERVERS[host] = server_info
-
-    # Register cleanup on exit
-    atexit.register(_cleanup_servers)
-
-    # Wait for server to be ready
-    if _wait_for_server(host):
-        logger.success(f"syft-rds server is ready for {host}")
-        return True
-    else:
-        logger.error(f"syft-rds server failed to start for {host}")
-        return False
-
-
-def _stop_server(host: str) -> bool:
-    """Stop the syft-rds server for a specific host.
-
-    Args:
-        host: Email of the host whose server to stop
-
-    Returns:
-        True if server was stopped, False if no server was running
-    """
-    if host not in _RUNNING_RDS_SERVERS:
-        return False
-
-    server_info = _RUNNING_RDS_SERVERS[host]
-    thread = server_info["thread"]
-    server = server_info["server"]
-
-    if thread.is_alive():
-        logger.info(f"Stopping syft-rds server for {host}")
-        try:
-            server.stop()
-            thread.join(timeout=5)  # Wait up to 5 seconds for clean shutdown
-            if thread.is_alive():
-                logger.warning(f"Server thread for {host} did not stop gracefully")
-        except Exception as e:
-            logger.error(f"Error stopping server for {host}: {e}")
-
-    del _RUNNING_RDS_SERVERS[host]
-    logger.success(f"Stopped syft-rds server for {host}")
-    return True
-
-
-def _cleanup_servers() -> None:
-    """Clean up server threads on exit."""
-    for host, server_info in _RUNNING_RDS_SERVERS.items():
-        thread = server_info["thread"]
-        server = server_info["server"]
-
-        if thread.is_alive():
-            logger.debug(f"Cleaning up server thread for {host}")
-            try:
-                server.stop()
-            except Exception as e:
-                logger.debug(f"Error during server cleanup for {host}: {e}")
-
-    _RUNNING_RDS_SERVERS.clear()
-
-
-def _resolve_syftbox_client(
-    syftbox_client: Optional[SyftBoxClient] = None,
-    config_path: Optional[PathLike] = None,
-) -> SyftBoxClient:
-    """
-    Resolve a SyftBox client from either a provided instance or config path.
-
-    Args:
-        syftbox_client (SyftBoxClient, optional): Pre-configured client instance
-        config_path (Union[str, Path], optional): Path to client config file
-
-    Returns:
-        SyftBoxClient: The SyftBox client instance
-
-    Raises:
-        ValueError: If both syftbox_client and config_path are provided
-    """
-    if (
-        syftbox_client
-        and config_path
-        and syftbox_client.config_path.resolve() != Path(config_path).resolve()
-    ):
-        raise ValueError("Cannot provide both syftbox_client and config_path.")
-
-    if syftbox_client:
-        return syftbox_client
-
-    return SyftBoxClient.load(filepath=config_path)
-
-
 def init_session(
     host: str,
     syftbox_client: Optional[SyftBoxClient] = None,
@@ -261,7 +121,13 @@ def init_session(
     # Auto-start server if not using mock and auto_start_server is enabled
     use_mock = mock_server is not None
     if not use_mock and start_rds_server:
-        server_started = _ensure_server_running(syftbox_client, start_rds_server)
+        if host != syftbox_client.email:
+            raise ValueError(
+                f"Cannot start syft-rds server for a different host. Host email: {host}. Syftbox client email: {syftbox_client.email}"
+            )
+        server_started = _ensure_server_running(
+            syftbox_client=syftbox_client, auto_start=start_rds_server
+        )
         if not server_started:
             logger.warning(
                 f"Failed to start syft-rds server for {host}. "
@@ -568,3 +434,144 @@ class RDSClient(RDSClientBase):
             True if server was stopped, False if no server was running for this host
         """
         return _stop_server(self.config.host)
+
+
+def _start_server_thread(syftbox_client: SyftBoxClient) -> dict:
+    """Start syft-rds server in a background thread."""
+    rds_app: SyftEvents = create_app(client=syftbox_client)
+
+    def run_server():
+        try:
+            logger.info(f"Starting syft-rds server for {syftbox_client.email}")
+            rds_app.run_forever()
+        except Exception as e:
+            logger.error(f"Server thread failed: {e}")
+
+    thread = threading.Thread(target=run_server, daemon=True)
+    thread.start()
+
+    return {"thread": thread, "server": rds_app}
+
+
+def _wait_for_server(host: str, timeout: int = 30) -> bool:
+    """Wait for server to be ready."""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if rds_server_running(host):
+            logger.debug(f"syft-rds server is running for {host}")
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def _ensure_server_running(
+    syftbox_client: SyftBoxClient, auto_start: bool = False
+) -> bool:
+    """Ensure syft-rds server is running, starting it if needed."""
+    host = syftbox_client.email
+
+    if rds_server_running(host):
+        return True
+
+    if not auto_start:
+        return False
+
+    # Check if we already have a server thread for this client
+    if host in _RUNNING_RDS_SERVERS and _RUNNING_RDS_SERVERS[host]["thread"].is_alive():
+        # Server thread exists, wait for it to be ready
+        if _wait_for_server(host):
+            return True
+
+    logger.info(f"syft-rds server not running for {host}, starting automatically...")
+
+    # Start new server thread
+    server_info = _start_server_thread(syftbox_client)
+    _RUNNING_RDS_SERVERS[host] = server_info
+
+    # Register cleanup on exit
+    atexit.register(_cleanup_servers)
+
+    # Wait for server to be ready
+    if _wait_for_server(host):
+        logger.success(f"syft-rds server is ready for {host}")
+        return True
+    else:
+        logger.error(f"syft-rds server failed to start for {host}")
+        return False
+
+
+def _stop_server(host: str) -> bool:
+    """Stop the syft-rds server for a specific host.
+
+    Args:
+        host: Email of the host whose server to stop
+
+    Returns:
+        True if server was stopped, False if no server was running
+    """
+    if host not in _RUNNING_RDS_SERVERS:
+        return False
+
+    server_info = _RUNNING_RDS_SERVERS[host]
+    thread = server_info["thread"]
+    server = server_info["server"]
+
+    if thread.is_alive():
+        logger.info(f"Stopping syft-rds server for {host}")
+        try:
+            server.stop()
+            thread.join(timeout=5)  # Wait up to 5 seconds for clean shutdown
+            if thread.is_alive():
+                logger.warning(f"Server thread for {host} did not stop gracefully")
+        except Exception as e:
+            logger.error(f"Error stopping server for {host}: {e}")
+
+    del _RUNNING_RDS_SERVERS[host]
+    logger.success(f"Stopped syft-rds server for {host}")
+    return True
+
+
+def _cleanup_servers() -> None:
+    """Clean up server threads on exit."""
+    for host, server_info in _RUNNING_RDS_SERVERS.items():
+        thread = server_info["thread"]
+        server = server_info["server"]
+
+        if thread.is_alive():
+            logger.debug(f"Cleaning up server thread for {host}")
+            try:
+                server.stop()
+            except Exception as e:
+                logger.debug(f"Error during server cleanup for {host}: {e}")
+
+    _RUNNING_RDS_SERVERS.clear()
+
+
+def _resolve_syftbox_client(
+    syftbox_client: Optional[SyftBoxClient] = None,
+    config_path: Optional[PathLike] = None,
+) -> SyftBoxClient:
+    """
+    Resolve a SyftBox client from either a provided instance or config path.
+
+    Args:
+        syftbox_client (SyftBoxClient, optional): Pre-configured client instance
+        config_path (Union[str, Path], optional): Path to client config file
+
+    Returns:
+        SyftBoxClient: The SyftBox client instance
+
+    Raises:
+        ValueError: If both syftbox_client and config_path are provided
+    """
+    if (
+        syftbox_client
+        and config_path
+        and syftbox_client.config_path.resolve() != Path(config_path).resolve()
+    ):
+        raise ValueError("Cannot provide both syftbox_client and config_path.")
+
+    if syftbox_client:
+        return syftbox_client
+
+    return SyftBoxClient.load(filepath=config_path)

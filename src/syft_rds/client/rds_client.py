@@ -236,6 +236,13 @@ def init_session(
         syftbox_client, syftbox_client_config_path
     )
 
+    try:
+        ensure_bootstrap(syftbox_client)
+    except Exception as e:
+        logger.error(
+            f"Failed to bootstrap crypto keys for user {syftbox_client.email}: {e}"
+        )
+
     # Store job output folder in .syftbox/rds/<email>/jobs/ to keep sensitive logs local and never synced
     job_output_folder = (
         syftbox_client.workspace.data_dir.parent
@@ -264,15 +271,6 @@ def init_session(
     logger.info(
         f"Initialized RDSClient for host {host} as user {syftbox_client.email}. Is admin: {rds_client.is_admin}"
     )
-
-    # Bootstrap encryption keys for admin users
-    if rds_client.is_admin:
-        try:
-            ensure_bootstrap(syftbox_client)
-        except Exception as e:
-            logger.error(
-                f"Failed to bootstrap crypto keys for user {syftbox_client.email}: {e}"
-            )
 
     # start the syft event server if user is admin
     if not use_mock and rds_client.is_admin and start_syft_event_server:

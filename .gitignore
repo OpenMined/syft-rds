@@ -191,6 +191,7 @@ job_outputs/
 .server/
 tmp/
 **/.syftbox/
+**/local_syftbox_network/
 
 # MacOS
 .DS_Store

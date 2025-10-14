@@ -53,6 +53,7 @@ class RDSStack:
             host=do_client.email,
             email=do_client.email,
             syftbox_client=do_client,
+            start_syft_event_server=False,  # already started earlier
             **config_kwargs,
         )
 

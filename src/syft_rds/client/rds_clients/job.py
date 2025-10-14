@@ -320,6 +320,79 @@ class JobRDSClient(RDSClientModule[Job]):
             "stderr": stderr_file.read_text() if stderr_file.exists() else "",
         }
 
+    def show_logs(
+        self, job: Union[Job, UUID], show_stdout: bool = True, show_stderr: bool = True
+    ) -> None:
+        """Display the stdout and stderr logs for a job in a formatted way.
+
+        Args:
+            job: Job object or UUID of the job
+            show_stdout: Whether to display stdout logs (default: True)
+            show_stderr: Whether to display stderr logs (default: True)
+
+        Raises:
+            ValueError: If logs directory doesn't exist
+        """
+        logs = self.get_logs(job)
+
+        # Try to use IPython display if available (for Jupyter notebooks)
+        try:
+            from IPython.display import HTML, display
+
+            html_parts = []
+
+            if show_stdout and logs["stdout"]:
+                # Works for both dark and light modes
+                stdout_html = f"""
+                <div style="margin-bottom: 20px;">
+                    <h3 style="color: #4caf50; margin-bottom: 10px;">📄 STDOUT</h3>
+                    <pre style="background-color: rgba(76, 175, 80, 0.15);
+                                color: var(--jp-ui-font-color1, var(--jp-content-font-color1, inherit));
+                                padding: 15px; border-radius: 5px;
+                                border-left: 4px solid #4caf50; overflow-x: auto;
+                                font-family: 'Courier New', monospace; font-size: 12px;">{logs["stdout"]}</pre>
+                </div>
+                """
+                html_parts.append(stdout_html)
+
+            if show_stderr and logs["stderr"]:
+                # Works for both dark and light modes
+                stderr_html = f"""
+                <div style="margin-bottom: 20px;">
+                    <h3 style="color: #ff5252; margin-bottom: 10px;">⚠️ STDERR</h3>
+                    <pre style="background-color: rgba(255, 82, 82, 0.15);
+                                color: var(--jp-ui-font-color1, var(--jp-content-font-color1, inherit));
+                                padding: 15px; border-radius: 5px;
+                                border-left: 4px solid #ff5252; overflow-x: auto;
+                                font-family: 'Courier New', monospace; font-size: 12px;">{logs["stderr"]}</pre>
+                </div>
+                """
+                html_parts.append(stderr_html)
+
+            if not html_parts:
+                display(HTML("<p><i>No logs to display</i></p>"))
+            else:
+                display(HTML("".join(html_parts)))
+
+        except ImportError:
+            # Fallback to plain text for console environments
+            separator = "=" * 80
+
+            if show_stdout and logs["stdout"]:
+                print(f"\n{separator}")
+                print("📄 STDOUT")
+                print(separator)
+                print(logs["stdout"])
+
+            if show_stderr and logs["stderr"]:
+                print(f"\n{separator}")
+                print("⚠️ STDERR")
+                print(separator)
+                print(logs["stderr"])
+
+            if not logs["stdout"] and not logs["stderr"]:
+                print("\nNo logs to display")
+
     def approve(self, job: Job) -> Job:
         if not self.is_admin:
             raise RDSValidationError("Only admins can approve jobs")

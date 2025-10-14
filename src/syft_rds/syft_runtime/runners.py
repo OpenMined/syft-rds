@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Callable, Type
@@ -95,72 +96,106 @@ class JobRunner:
         for handler in self.handlers:
             handler.on_job_start(job_config)
 
-        # Enable real-time output streaming using multiple approaches:
-        # 1. PYTHONUNBUFFERED=1 env var (fallback for edge cases)
-        # 2. Python's -u flag in command (primary method, set in _prepare_run_command)
-        # 3. bufsize=1 for line buffering on our subprocess pipes
+        # Enable real-time output by writing directly to log files
+        # This eliminates pipe buffering issues
         if env is None:
             env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
 
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,  # Line buffering for real-time output
-            env=env,
-        )
+        # Open log files for direct subprocess output (line buffered for real-time writes)
+        stdout_log_path = job_config.logs_dir / "stdout.log"
+        stderr_log_path = job_config.logs_dir / "stderr.log"
 
-        if blocking:
-            logger.info("Running job in blocking mode")
-            return self._run_blocking(process, job)
-        else:
-            logger.info("Running job in non-blocking mode")
-            return process
+        stdout_file = open(stdout_log_path, "w", buffering=1)
+        stderr_file = open(stderr_log_path, "w", buffering=1)
+
+        try:
+            process = subprocess.Popen(
+                cmd,
+                stdout=stdout_file,  # Write directly to file
+                stderr=stderr_file,  # Write directly to file
+                text=True,
+                env=env,
+            )
+
+            if blocking:
+                logger.info("Running job in blocking mode")
+                return self._run_blocking(
+                    process, job, job_config, stdout_file, stderr_file
+                )
+            else:
+                logger.info("Running job in non-blocking mode")
+                # Store file handles for cleanup later
+                process._log_files = (stdout_file, stderr_file)
+                return process
+        except Exception:
+            # Clean up files if process creation fails
+            stdout_file.close()
+            stderr_file.close()
+            raise
 
     def _run_blocking(
         self,
         process: subprocess.Popen,
         job: Job,
+        job_config: JobConfig,
+        stdout_file,
+        stderr_file,
     ) -> tuple[int, str | None]:
+        """Wait for process to complete while tailing logs in real-time."""
+        # Create stop event for tailing threads
+        stop_event = threading.Event()
+
+        # Start threads to tail log files and stream to handlers
+        stdout_log_path = job_config.logs_dir / "stdout.log"
+        stderr_log_path = job_config.logs_dir / "stderr.log"
+
+        stdout_thread = threading.Thread(
+            target=_tail_file,
+            args=(stdout_log_path, self.handlers, stop_event, False),
+            daemon=True,
+        )
+        stderr_thread = threading.Thread(
+            target=_tail_file,
+            args=(stderr_log_path, self.handlers, stop_event, True),
+            daemon=True,
+        )
+
+        # Start tailing threads
+        stdout_thread.start()
+        stderr_thread.start()
+
+        try:
+            # Wait for process to complete
+            return_code = process.wait()
+            logger.debug(
+                f"Process {process.pid} terminated with return code {return_code}"
+            )
+        finally:
+            # Stop tailing threads
+            stop_event.set()
+
+            # Close log files to ensure all data is flushed
+            stdout_file.close()
+            stderr_file.close()
+
+            # Wait for tailing threads to finish (with timeout)
+            stdout_thread.join(timeout=2.0)
+            stderr_thread.join(timeout=2.0)
+
+        # Read log files to check for errors
         stderr_logs = []
-        error_logs = []  # Track actual ERROR-level logs
+        error_logs = []
 
-        # Stream logs
-        while True:
-            stdout_line = process.stdout.readline()
-            stderr_line = process.stderr.readline()
-            if stderr_line:
-                stderr_logs.append(stderr_line)
-                # Check if this is an actual ERROR log
-                log_level, _ = parse_log_level(stderr_line)
-                if log_level in ("ERROR", "CRITICAL"):
-                    error_logs.append(stderr_line)
-            if stdout_line or stderr_line:
-                for handler in self.handlers:
-                    handler.on_job_progress(stdout_line, stderr_line)
-            if process.poll() is not None:
-                logger.debug(
-                    f"Process {process.pid} terminated with return code {process.returncode}"
-                )
-                break
-            time.sleep(0.1)
+        if stderr_log_path.exists():
+            with open(stderr_log_path, "r") as f:
+                for line in f:
+                    stderr_logs.append(line.rstrip("\n"))
+                    # Check if this is an actual ERROR log
+                    log_level, _ = parse_log_level(line)
+                    if log_level in ("ERROR", "CRITICAL"):
+                        error_logs.append(line.rstrip("\n"))
 
-        # Flush remaining output
-        for line in process.stdout:
-            for handler in self.handlers:
-                handler.on_job_progress(line, "")
-        for line in process.stderr:
-            stderr_logs.append(line)
-            # Check if this is an actual ERROR log
-            log_level, _ = parse_log_level(line)
-            if log_level in ("ERROR", "CRITICAL"):
-                error_logs.append(line)
-            for handler in self.handlers:
-                handler.on_job_progress("", line)
-
-        return_code = process.returncode
         logger.debug(f"Return code: {return_code}")
         error_message = None
 
@@ -176,9 +211,9 @@ class JobRunner:
             error_message = "\n".join(error_logs)
             return_code = 1
 
-        # Handle job completion results
+        # Notify handlers of completion
         for handler in self.handlers:
-            handler.on_job_completion(process.returncode)
+            handler.on_job_completion(return_code)
 
         return return_code, error_message
 
@@ -429,3 +464,57 @@ class DockerRunner(JobRunner):
         ]
         logger.debug(f"Docker run command: {docker_run_cmd}")
         return docker_run_cmd
+
+
+def _tail_file(
+    file_path: Path,
+    handlers: list[JobOutputHandler],
+    stop_event: threading.Event,
+    is_stderr: bool = False,
+    poll_interval: float = 0.1,
+) -> None:
+    """
+    Tail a file in real-time and call handlers with new lines.
+
+    This function runs in a background thread and follows a log file like `tail -f`,
+    calling handler.on_job_progress() for each new line that appears.
+
+    Args:
+        file_path: Path to the log file to tail
+        handlers: List of output handlers to notify
+        stop_event: Threading event to signal when to stop tailing
+        is_stderr: Whether this is stderr (vs stdout)
+        poll_interval: How often to check for new lines (seconds)
+    """
+    # Wait for file to be created
+    max_wait = 5  # seconds
+    wait_time = 0
+    while not file_path.exists() and wait_time < max_wait:
+        if stop_event.is_set():
+            return
+        time.sleep(0.1)
+        wait_time += 0.1
+
+    if not file_path.exists():
+        logger.warning(f"Log file {file_path} was not created")
+        return
+
+    try:
+        with open(file_path, "r") as f:
+            # Start from beginning to catch any early output
+            while not stop_event.is_set():
+                line = f.readline()
+                if line:
+                    # Remove trailing newline for handler
+                    line = line.rstrip("\n")
+                    # Call handlers with new line
+                    for handler in handlers:
+                        if is_stderr:
+                            handler.on_job_progress("", line + "\n")
+                        else:
+                            handler.on_job_progress(line + "\n", "")
+                else:
+                    # No new line, sleep briefly
+                    time.sleep(poll_interval)
+    except Exception as e:
+        logger.error(f"Error tailing {file_path}: {e}")

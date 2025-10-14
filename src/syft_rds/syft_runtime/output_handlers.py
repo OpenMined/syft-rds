@@ -1,5 +1,4 @@
 from typing import Protocol
-import os
 import re
 from pathlib import Path
 
@@ -73,41 +72,34 @@ class JobOutputHandler(Protocol):
 
 
 class FileOutputHandler(JobOutputHandler):
-    """Handles writing job output to log files with real-time flushing for tailing"""
+    """Writes initial job start message to log files.
+
+    Note: The subprocess itself writes directly to log files for real-time streaming.
+    This handler only writes the initial "Starting job..." message.
+    """
 
     def __init__(self):
         pass
 
     def on_job_start(self, job_config: JobConfig) -> None:
-        self.config = job_config
-        # Open files in unbuffered mode (buffering=1 for line buffering in text mode)
-        # This ensures writes are immediately visible to other processes (e.g., rds-dashboard)
-        self.stdout_file = (job_config.logs_dir / "stdout.log").open("w", buffering=1)
-        self.stderr_file = (job_config.logs_dir / "stderr.log").open("w", buffering=1)
-        self.on_job_progress(stdout="Starting job...\n", stderr="Starting job...\n")
+        """Write initial message to log files before subprocess starts."""
+        # Write "Starting job..." to both log files
+        stdout_path = job_config.logs_dir / "stdout.log"
+        stderr_path = job_config.logs_dir / "stderr.log"
+
+        with open(stdout_path, "w") as f:
+            f.write("Starting job...\n")
+
+        with open(stderr_path, "w") as f:
+            f.write("Starting job...\n")
 
     def on_job_progress(self, stdout: str, stderr: str) -> None:
-        if stdout:
-            self.stdout_file.write(stdout)
-            self.stdout_file.flush()  # Explicit flush for immediate visibility
-            # Force OS-level flush
-            os.fsync(self.stdout_file.fileno())
-        if stderr:
-            self.stderr_file.write(stderr)
-            self.stderr_file.flush()  # Explicit flush for immediate visibility
-            # Force OS-level flush
-            os.fsync(self.stderr_file.fileno())
+        """No-op: subprocess writes directly to files."""
+        pass
 
     def on_job_completion(self, return_code: int) -> None:
-        self.on_job_progress(
-            stdout=f"Job completed with return code {return_code}\n",
-            stderr=f"Job completed with return code {return_code}\n",
-        )
-        self.close()
-
-    def close(self) -> None:
-        self.stdout_file.close()
-        self.stderr_file.close()
+        """No-op: subprocess has already written all output."""
+        pass
 
 
 class RichConsoleUI(JobOutputHandler):

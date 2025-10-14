@@ -35,6 +35,7 @@ def do_syftbox_client(tmp_path: Path) -> SyftBoxClient:
     return SyftBoxClient(
         SyftClientConfig(
             email=DO_EMAIL,
+            server_url="http://localhost:8080",
             client_url="http://localhost:5000",
             path=tmp_path / "syftbox_client_config.json",
             data_dir=tmp_path / "clients" / SHARED_DATA_DIR,
@@ -47,6 +48,7 @@ def ds_syftbox_client(tmp_path: Path) -> SyftBoxClient:
     return SyftBoxClient(
         SyftClientConfig(
             email=DS_EMAIL,
+            server_url="http://localhost:8080",
             client_url="http://localhost:5001",
             path=tmp_path / "syftbox_client_config.json",
             data_dir=tmp_path / "clients" / SHARED_DATA_DIR,
@@ -65,6 +67,7 @@ def ds_rds_client(
 ) -> RDSClient:
     return init_session(
         host=DO_EMAIL,
+        email=DS_EMAIL,
         syftbox_client=ds_syftbox_client,
         mock_server=rds_server,
     )
@@ -76,6 +79,7 @@ def do_rds_client(
 ) -> RDSClient:
     return init_session(
         host=DO_EMAIL,
+        email=DO_EMAIL,
         syftbox_client=do_syftbox_client,
         mock_server=rds_server,
     )
@@ -121,6 +125,7 @@ def do_syftbox_config(tmp_path) -> SyftClientConfig:
         path=config_path,
         data_dir=data_dir,
         email=do_email,
+        server_url="http://localhost:8080",
         client_url="http://test:8080",
     )
     conf.data_dir.mkdir(parents=True, exist_ok=True)
@@ -137,6 +142,7 @@ def ds_syftbox_config(tmp_path) -> SyftClientConfig:
         path=config_path,
         data_dir=data_dir,
         email=ds_email,
+        server_url="http://localhost:8080",
         client_url="http://test:8081",
     )
     conf.data_dir.mkdir(parents=True, exist_ok=True)

@@ -78,6 +78,7 @@ class Client:
     def config(self):
         return SyftClientConfig(
             email=self.email,
+            server_url=f"http://localhost:{self.server_port}",
             client_url=f"http://localhost:{self.port}",
             path=self.config_path,
             data_dir=self.data_dir,

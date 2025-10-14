@@ -44,10 +44,14 @@ async def test_e2e_dataset_create_get_del(e2e_context: E2EContext):
         assert client.public_dir.exists()
 
     do_rds_client: RDSClient = init_session(
-        host=data_owner.email, syftbox_client_config_path=data_owner.config_path
+        host=data_owner.email,
+        email=data_owner.email,
+        syftbox_client_config_path=data_owner.config_path,
     )
     ds_rds_client: RDSClient = init_session(
-        host=data_owner.email, syftbox_client_config_path=data_scientist.config_path
+        host=data_owner.email,
+        email=data_scientist.email,
+        syftbox_client_config_path=data_scientist.config_path,
     )
     assert do_rds_client.is_admin
     assert not ds_rds_client.is_admin

@@ -45,11 +45,13 @@ async def test_e2e_full_flow(e2e_context: E2EContext):
     rds_server: SyftEvents = create_app(data_owner)
     do_rds_client: RDSClient = init_session(
         host=data_owner.email,
+        email=data_owner.email,
         syftbox_client_config_path=data_owner.config_path,
         mock_server=rds_server,
     )
     ds_rds_client: RDSClient = init_session(
         host=data_owner.email,
+        email=data_scientist.email,
         syftbox_client_config_path=data_scientist.config_path,
         mock_server=rds_server,
     )

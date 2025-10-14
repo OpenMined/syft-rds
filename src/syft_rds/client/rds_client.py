@@ -232,7 +232,7 @@ def init_session(
             ensure_bootstrap(syftbox_client)
         except Exception as e:
             logger.error(
-                f"Failed to ensure bootstrap for admin user {syftbox_client.email}: {e}"
+                f"Failed to bootstrap crypto keys for user {syftbox_client.email}: {e}"
             )
 
     # start the syft event server if user is admin

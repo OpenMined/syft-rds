@@ -51,12 +51,14 @@ class RDSStack:
 
         self.do_rds_client = init_session_rds(
             host=do_client.email,
+            email=do_client.email,
             syftbox_client=do_client,
             **config_kwargs,
         )
 
         self.ds_rds_client = init_session_rds(
             host=do_client.email,
+            email=ds_client.email,
             syftbox_client=ds_client,
             **config_kwargs,
         )
@@ -158,9 +160,12 @@ class SingleRDSStack:
         self.server = create_app(client)
         self.server.start()
 
-    def init_session(self, host, **config_kwargs):
+    def init_session(self, host, email=None, **config_kwargs):
+        if email is None:
+            email = self.client.email
         return init_session_rds(
             host=host,
+            email=email,
             syftbox_client=self.client,
             **config_kwargs,
         )

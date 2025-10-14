@@ -182,12 +182,15 @@ notebooks/quickstart/full_flow_notebook_test
 # VSCode
 .vscode/
 
+# tests artifacts
+tests/__pycache__/
 .e2e/
 job_outputs/
 .logs/
 .clients/
 .server/
 tmp/
+**/.syftbox/
 
 # MacOS
 .DS_Store

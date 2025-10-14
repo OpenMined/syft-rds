@@ -1,4 +1,4 @@
-from .main import DockerRunner, PythonRunner, get_runner_cls
+from .runners import DockerRunner, PythonRunner, get_runner_cls
 
 from .output_handlers import FileOutputHandler, RichConsoleUI, TextUI
 

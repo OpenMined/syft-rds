@@ -1,4 +1,8 @@
+import subprocess
+import tomllib
 from pathlib import Path
+
+from loguru import logger
 
 from syft_rds.client.rds_clients.base import RDSClientModule
 from syft_rds.client.utils import PathLike
@@ -35,6 +39,10 @@ class UserCodeRDSClient(RDSClientModule[UserCode]):
                 raise FileNotFoundError(
                     f"Entrypoint {entrypoint} does not exist in {code_path}."
                 )
+
+            # Generate uv.lock if needed (ensures reproducible environments across DOs)
+            _generate_uv_lock(code_path)
+
             files_zipped = zip_to_bytes(files_or_dirs=[code_path], base_dir=code_path)
         else:
             code_type = UserCodeType.FILE
@@ -54,3 +62,88 @@ class UserCodeRDSClient(RDSClientModule[UserCode]):
         user_code = self.rpc.user_code.create(user_code_create)
 
         return user_code
+
+
+def _has_editable_dependencies(pyproject_path: Path) -> bool:
+    """Check if pyproject.toml contains editable/path dependencies.
+
+    Returns True if [tool.uv.sources] contains any entries with 'path' or 'editable' keys.
+    These indicate local/editable dependencies that won't work across different filesystems.
+    """
+    try:
+        with open(pyproject_path, "rb") as f:
+            pyproject = tomllib.load(f)
+
+        # Check for uv sources (where editable deps are defined)
+        uv_sources = pyproject.get("tool", {}).get("uv", {}).get("sources", {})
+
+        for source_name, source_config in uv_sources.items():
+            if isinstance(source_config, dict):
+                # Check if this source has 'path' or 'editable' keys
+                if "path" in source_config or "editable" in source_config:
+                    logger.debug(
+                        f"Found editable dependency: {source_name} = {source_config}"
+                    )
+                    return True
+
+        return False
+    except Exception as e:
+        logger.warning(
+            f"Failed to parse pyproject.toml: {e}. Assuming no editable deps."
+        )
+        return False
+
+
+def _generate_uv_lock(code_path: Path) -> None:
+    """Generate uv.lock file if pyproject.toml exists and no lock file is present.
+
+    Skips generation if editable dependencies are detected (dev mode).
+    In production mode (PyPI-only deps), generates lock for reproducible environments.
+
+    Args:
+        code_path: Path to the code directory containing pyproject.toml
+    """
+    pyproject_path = code_path / "pyproject.toml"
+    uv_lock_path = code_path / "uv.lock"
+
+    if not pyproject_path.exists() or uv_lock_path.exists():
+        return
+
+    # Check for editable dependencies before generating lock
+    if _has_editable_dependencies(pyproject_path):
+        logger.debug(
+            "Skipping lock generation: editable dependencies detected (dev mode). "
+            "Each DO will generate its own lock file."
+        )
+        return
+
+    # No editable deps - safe to generate portable lock file
+    logger.info(
+        f"Generating `uv.lock` for {code_path} to ensure reproducible environments"
+    )
+    try:
+        subprocess.run(
+            ["uv", "lock"],
+            cwd=code_path,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=120,  # 2 minute timeout
+        )
+        logger.success(
+            "Generated `uv.lock`. All DOs will use identical dependency versions."
+        )
+
+    except subprocess.CalledProcessError as e:
+        logger.warning(
+            f"Failed to generate uv.lock: {e.stderr}. "
+            "Each DO will generate its own lock (versions may differ)."
+        )
+    except FileNotFoundError:
+        logger.warning(
+            "uv not found. DOs will generate locks independently (versions may differ)."
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "Lock generation timed out. DOs will generate locks independently."
+        )

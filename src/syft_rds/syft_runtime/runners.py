@@ -249,16 +249,27 @@ class PythonRunner(JobRunner):
 
         if runtime_config.use_uv and pyproject_path.exists():
             logger.debug(f"Using 'uv run' for job execution (found {pyproject_path})")
-            return [
-                "uv",
-                "run",
-                "--directory",
-                str(job_config.function_folder),
-                "python",
-                "-u",  # Force unbuffered output for real-time streaming
-                str(script_path),
-                *job_config.args[1:],
-            ]
+
+            # Build command with optional --frozen flag
+            cmd = ["uv", "run"]
+
+            # Add --frozen if uv.lock exists (speeds up subsequent runs)
+            uv_lock_path = job_config.function_folder / "uv.lock"
+            if uv_lock_path.exists():
+                cmd.append("--frozen")
+                logger.debug(f"Using --frozen flag (found {uv_lock_path})")
+
+            cmd.extend(
+                [
+                    "--directory",
+                    str(job_config.function_folder),
+                    "python",
+                    "-u",  # Force unbuffered output for real-time streaming
+                    str(script_path),
+                    *job_config.args[1:],
+                ]
+            )
+            return cmd
         else:
             # Fallback to regular python execution
             logger.debug("Using standard Python execution")

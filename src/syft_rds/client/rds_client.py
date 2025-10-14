@@ -40,12 +40,12 @@ from syft_rds.models import (
     Runtime,
     RuntimeKind,
     UserCode,
+    JobConfig,
 )
 from syft_rds.models.base import ItemBase
 from syft_rds.server.app import create_app
-from syft_rds.syft_runtime.main import (
+from syft_rds.syft_runtime import (
     FileOutputHandler,
-    JobConfig,
     RichConsoleUI,
     TextUI,
     get_runner_cls,

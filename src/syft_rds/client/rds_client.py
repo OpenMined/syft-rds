@@ -77,9 +77,18 @@ def _validate_email(email: str, param_name: str = "email") -> None:
 
 
 def _prepare_local_syftbox_dir(
-    syftbox_dir: PathLike, reset: bool = False
+    syftbox_dir: PathLike, reset: bool = False, host: Optional[str] = None
 ) -> Optional[Path]:
-    """Prepare a local syftbox directory for local testing."""
+    """Prepare a local syftbox directory for local testing.
+
+    Args:
+        syftbox_dir: Path to the syftbox directory
+        reset: Whether to reset (delete and recreate) the directory
+        host: Email of the host (used to stop server before reset)
+
+    Returns:
+        Path to the prepared syftbox directory, or None if production directory
+    """
     syftbox_path = Path(syftbox_dir).expanduser().resolve()
     dot_syftbox_path = syftbox_path.parent / ".syftbox"
 
@@ -93,18 +102,48 @@ def _prepare_local_syftbox_dir(
         )
         return None
 
-    if reset and dot_syftbox_path.is_dir():
-        try:
-            shutil.rmtree(dot_syftbox_path)
-        except Exception as e:
-            logger.warning(f"Failed to reset directory {dot_syftbox_path}: {e}")
-    dot_syftbox_path.mkdir(parents=True, exist_ok=True)
+    if reset:
+        # Stop ALL running servers before removing directories (not just for this host)
+        # This is needed because multiple servers may have file handles open in the shared directory tree
+        if _RUNNING_RDS_SERVERS:
+            hosts_to_stop = list(_RUNNING_RDS_SERVERS.keys())
+            logger.debug(
+                f"Stopping {len(hosts_to_stop)} running servers before directory reset: {hosts_to_stop}"
+            )
+            for host_to_stop in hosts_to_stop:
+                _stop_server(host_to_stop)
+            time.sleep(1.0)  # Give servers time to release all file handles
 
-    if reset and syftbox_path.is_dir():
-        try:
-            shutil.rmtree(syftbox_path)
-        except Exception as e:
-            logger.warning(f"Failed to reset directory {syftbox_path}: {e}")
+        # Force remove directories with retry logic
+        def force_remove_dir(path: Path, max_retries: int = 3) -> None:
+            """Remove directory with retry logic and force deletion."""
+            for attempt in range(max_retries):
+                try:
+                    if path.is_dir():
+                        shutil.rmtree(path, ignore_errors=False)
+                        logger.debug(f"Successfully removed {path}")
+                    return
+                except OSError as e:
+                    if attempt < max_retries - 1:
+                        logger.debug(
+                            f"Retry {attempt + 1}/{max_retries} for {path}: {e}"
+                        )
+                        time.sleep(0.5)  # Wait before retry
+                    else:
+                        # Last attempt: try with ignore_errors=True
+                        logger.warning(
+                            f"Failed to reset directory {path} after {max_retries} attempts: {e}"
+                        )
+                        try:
+                            shutil.rmtree(path, ignore_errors=True)
+                        except Exception:
+                            pass  # Ignore final errors
+
+        force_remove_dir(dot_syftbox_path)
+        force_remove_dir(syftbox_path)
+
+    # Create directories
+    dot_syftbox_path.mkdir(parents=True, exist_ok=True)
     syftbox_path.mkdir(parents=True, exist_ok=True)
 
     return syftbox_path
@@ -179,7 +218,7 @@ def init_session(
         logger.debug(
             f"Using custom syftbox_dir: {syftbox_dir} (for local testing only)"
         )
-        syftbox_dir = _prepare_local_syftbox_dir(syftbox_dir, reset)
+        syftbox_dir = _prepare_local_syftbox_dir(syftbox_dir, reset, host)
         syftbox_client_config_path = (
             SyftClientConfig(
                 email=email,

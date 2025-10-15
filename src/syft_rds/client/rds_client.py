@@ -262,6 +262,18 @@ def init_session(
 
     config = RDSClientConfig(host=host, **config_kwargs)
 
+    # Detect self-connection: when connecting to yourself, use MockRPCConnection
+    # to avoid duplicate job processing from file watcher
+    is_self_connection = host == syftbox_client.email
+    if is_self_connection and mock_server is None:
+        logger.debug(
+            f"Detected self-connection (host={host}, email={syftbox_client.email}). "
+            "Using MockRPCConnection to avoid duplicate processing."
+        )
+        # Create the server app for mock connection
+        mock_server = create_app(client=syftbox_client)
+        mock_server.init()
+
     use_mock = mock_server is not None
     connection = get_connection(syftbox_client, mock_server, mock=use_mock)
     rpc_client = RPCClient(config, connection)

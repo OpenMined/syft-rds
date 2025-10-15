@@ -410,7 +410,7 @@ class JobRDSClient(RDSClientModule[Job]):
             JobStatus.job_run_finished,
             JobStatus.job_run_failed,
         )
-        if self.status not in allowed_statuses:
+        if job.status not in allowed_statuses:
             raise ValueError(f"Cannot reject job with status: {self.status}")
 
         error = (

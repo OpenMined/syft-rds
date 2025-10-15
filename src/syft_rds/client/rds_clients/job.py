@@ -28,7 +28,7 @@ class JobRDSClient(RDSClientModule[Job]):
     def submit(
         self,
         user_code_path: PathLike,
-        dataset_name: str,
+        dataset_name: Optional[str] = None,
         entrypoint: Optional[str] = None,
         name: Optional[str] = None,
         description: Optional[str] = None,
@@ -82,7 +82,7 @@ class JobRDSClient(RDSClientModule[Job]):
 
     def submit_with_params(
         self,
-        dataset_name: str,
+        dataset_name: Optional[str],
         custom_function: Union[CustomFunction, UUID],
         **params: Any,
     ) -> Job:
@@ -177,7 +177,7 @@ class JobRDSClient(RDSClientModule[Job]):
     def create(
         self,
         user_code: Union[UserCode, UUID],
-        dataset_name: str,
+        dataset_name: Optional[str] = None,
         name: Optional[str] = None,
         description: Optional[str] = None,
         tags: Optional[list[str]] = None,
@@ -342,12 +342,12 @@ class JobRDSClient(RDSClientModule[Job]):
             html_parts = []
 
             if show_stdout and logs["stdout"]:
-                # Works for both dark and light modes
+                # Terminal-style dark background
                 stdout_html = f"""
                 <div style="margin-bottom: 20px;">
                     <h3 style="color: #4caf50; margin-bottom: 10px;">📄 STDOUT</h3>
-                    <pre style="background-color: rgba(76, 175, 80, 0.15);
-                                color: var(--jp-ui-font-color1, var(--jp-content-font-color1, inherit));
+                    <pre style="background-color: #1e1e1e;
+                                color: #e0e0e0;
                                 padding: 15px; border-radius: 5px;
                                 border-left: 4px solid #4caf50; overflow-x: auto;
                                 font-family: 'Courier New', monospace; font-size: 12px;">{logs["stdout"]}</pre>
@@ -356,12 +356,12 @@ class JobRDSClient(RDSClientModule[Job]):
                 html_parts.append(stdout_html)
 
             if show_stderr and logs["stderr"]:
-                # Works for both dark and light modes
+                # Terminal-style dark background
                 stderr_html = f"""
                 <div style="margin-bottom: 20px;">
-                    <h3 style="color: #ff5252; margin-bottom: 10px;">⚠️ STDERR</h3>
-                    <pre style="background-color: rgba(255, 82, 82, 0.15);
-                                color: var(--jp-ui-font-color1, var(--jp-content-font-color1, inherit));
+                    <h3 style="color: #ff5252; margin-bottom: 10px;">🛠️ STDERR</h3>
+                    <pre style="background-color: #1e1e1e;
+                                color: #e0e0e0;
                                 padding: 15px; border-radius: 5px;
                                 border-left: 4px solid #ff5252; overflow-x: auto;
                                 font-family: 'Courier New', monospace; font-size: 12px;">{logs["stderr"]}</pre>
@@ -386,7 +386,7 @@ class JobRDSClient(RDSClientModule[Job]):
 
             if show_stderr and logs["stderr"]:
                 print(f"\n{separator}")
-                print("⚠️ STDERR")
+                print("🛠️ STDERR")
                 print(separator)
                 print(logs["stderr"])
 

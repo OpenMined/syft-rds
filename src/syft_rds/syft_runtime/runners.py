@@ -72,7 +72,8 @@ class JobRunner:
             raise ValueError(
                 f"Function folder {job_config.function_folder} does not exist"
             )
-        if not job_config.data_path.exists():
+        # data_path is optional - only validate if provided
+        if job_config.data_path is not None and not job_config.data_path.exists():
             raise ValueError(f"Dataset folder {job_config.data_path} does not exist")
 
     def _run_subprocess(
@@ -93,9 +94,6 @@ class JobRunner:
             job_update = job.get_update_for_in_progress()
             self.update_job_status_callback(job_update, job)
 
-        for handler in self.handlers:
-            handler.on_job_start(job_config)
-
         # Enable real-time output by writing directly to log files
         # This eliminates pipe buffering issues
         if env is None:
@@ -105,9 +103,11 @@ class JobRunner:
         # Open log files for direct subprocess output (line buffered for real-time writes)
         stdout_log_path = job_config.logs_dir / "stdout.log"
         stderr_log_path = job_config.logs_dir / "stderr.log"
-
         stdout_file = open(stdout_log_path, "w", buffering=1)
         stderr_file = open(stderr_log_path, "w", buffering=1)
+
+        for handler in self.handlers:
+            handler.on_job_start(job_config)
 
         try:
             process = subprocess.Popen(
@@ -188,7 +188,7 @@ class JobRunner:
         error_logs = []
 
         if stderr_log_path.exists():
-            with open(stderr_log_path, "r") as f:
+            with open(stderr_log_path, "r", errors="replace") as f:
                 for line in f:
                     stderr_logs.append(line.rstrip("\n"))
                     # Check if this is an actual ERROR log
@@ -406,11 +406,23 @@ class DockerRunner(JobRunner):
         docker_mounts = [
             "-v",
             f"{Path(job_config.function_folder).absolute()}:{DEFAULT_WORKDIR}/code:ro",
-            "-v",
-            f"{Path(job_config.data_path).absolute()}:{DEFAULT_WORKDIR}/data:ro",
-            "-v",
-            f"{job_config.output_dir.absolute()}:{DEFAULT_OUTPUT_DIR}:rw",
         ]
+
+        # Only mount data directory if data_path is provided
+        if job_config.data_path is not None:
+            docker_mounts.extend(
+                [
+                    "-v",
+                    f"{Path(job_config.data_path).absolute()}:{DEFAULT_WORKDIR}/data:ro",
+                ]
+            )
+
+        docker_mounts.extend(
+            [
+                "-v",
+                f"{job_config.output_dir.absolute()}:{DEFAULT_OUTPUT_DIR}:rw",
+            ]
+        )
 
         extra_mounts = self._get_extra_mounts(job_config)
         if extra_mounts:
@@ -449,22 +461,33 @@ class DockerRunner(JobRunner):
             "fsize=10000000:10000000",  # ~10MB file size limit
         ]
 
-        docker_run_cmd = [
-            "docker",
-            "run",
-            "--rm",  # Remove container after completion
-            *limits,
-            # Environment variables
+        # Base environment variables
+        env_args = [
             "-e",
             f"TIMEOUT={job_config.timeout}",
-            "-e",
-            f"DATA_DIR={job_config.data_mount_dir}",
             "-e",
             f"OUTPUT_DIR={DEFAULT_OUTPUT_DIR}",
             "-e",
             f"INTERPRETER={interpreter_str}",
             "-e",
             f"INPUT_FILE='{DEFAULT_WORKDIR}/code/{job_config.args[0]}'",
+        ]
+
+        # Only add DATA_DIR if data_path is provided
+        if job_config.data_path is not None:
+            env_args.extend(
+                [
+                    "-e",
+                    f"DATA_DIR={job_config.data_mount_dir}",
+                ]
+            )
+
+        docker_run_cmd = [
+            "docker",
+            "run",
+            "--rm",  # Remove container after completion
+            *limits,
+            *env_args,
             *job_config.get_extra_env_as_docker_args(),
             *docker_mounts,
             "--workdir",
@@ -511,7 +534,7 @@ def _tail_file(
         return
 
     try:
-        with open(file_path, "r") as f:
+        with open(file_path, "r", errors="replace") as f:
             # Start from beginning to catch any early output
             while not stop_event.is_set():
                 line = f.readline()

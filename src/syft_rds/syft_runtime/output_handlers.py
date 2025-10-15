@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing_extensions import Protocol, Optional
 import re
 from pathlib import Path
 
@@ -119,8 +119,8 @@ class RichConsoleUI(JobOutputHandler):
                     [
                         "[bold green]Starting job[/]",
                         f"[bold white]Execution:[/] [cyan]{' '.join(job_config.runtime.cmd)} {' '.join(job_config.args)}[/]",
-                        f"[bold white]Dataset Dir.:[/]  [cyan]{_limit_path_depth(job_config.data_path)}[/]",
-                        f"[bold white]Output Dir.:[/]   [cyan]{_limit_path_depth(job_config.output_dir)}[/]",
+                        f"[bold white]Dataset Dir:[/]  [cyan]{_format_path(job_config.data_path)}[/]",
+                        f"[bold white]Output Dir:[/]   [cyan]{_format_path(job_config.output_dir)}[/]",
                         f"[bold white]Timeout:[/]  [cyan]{job_config.timeout}s[/]",
                     ]
                 ),
@@ -184,13 +184,20 @@ class TextUI(JobOutputHandler):
     def on_job_start(self, config: JobConfig) -> None:
         first_line = "================ Job Configuration ================"
         last_line = "=" * len(first_line)
-        print(f"\n{first_line}")
-        print(f"Execution:    {' '.join(config.runtime.cmd)} {' '.join(config.args)}")
-        print(f"Dataset Dir.: {_limit_path_depth(config.data_path)}")
-        print(f"Output Dir.:  {_limit_path_depth(config.output_dir)}")
-        print(f"Timeout:      {config.timeout}s")
-        print(f"{last_line}\n")
-        print("[STARTING JOB]")
+
+        # Build the output
+        output_lines = [
+            f"\n{first_line}",
+            f"Execution:    {' '.join(config.runtime.cmd)} {' '.join(config.args)}",
+            f"Dataset Dir: {_format_path(config.data_path)}",
+            f"Output Dir:  {_format_path(config.output_dir)}",
+            f"Timeout:      {config.timeout}s",
+            f"{last_line}\n",
+            "[STARTING JOB]",
+        ]
+        output_text = "\n".join(output_lines)
+        print(output_text)
+
         self._job_running = True
 
     def on_job_progress(self, stdout: str, stderr: str) -> None:
@@ -225,9 +232,9 @@ class TextUI(JobOutputHandler):
         self._job_running = False
 
 
-# Helper function to limit path depth
-def _limit_path_depth(path: Path, max_depth: int = 4) -> str:
-    parts = path.parts
-    if len(parts) <= max_depth:
-        return str(path)
-    return str(Path("...") / Path(*parts[-max_depth:]))
+# Helper function to format path for display
+def _format_path(path: Optional[Path]) -> str:
+    """Format a path for display. Paths are already absolute from JobConfig."""
+    if path is None:
+        return "—"
+    return str(path)

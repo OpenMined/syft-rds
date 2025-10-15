@@ -56,7 +56,7 @@ class Job(ItemBase):
     ]
 
     name: str = Field(default_factory=generate_name)
-    dataset_name: str
+    dataset_name: Optional[str] = None
     user_code_id: UUID
 
     runtime_id: Optional[UUID] = None
@@ -242,7 +242,7 @@ class JobUpdate(ItemBaseUpdate[Job]):
 
 
 class JobCreate(ItemBaseCreate[Job]):
-    dataset_name: str
+    dataset_name: Optional[str] = None
     user_code_id: UUID
     runtime_id: Optional[UUID] = None
     name: Optional[str] = None
@@ -257,7 +257,7 @@ class JobConfig(BaseModel):
 
     function_folder: Path
     args: list[str]
-    data_path: Path
+    data_path: Optional[Path] = None  # None for jobs that don't need pre-existing data
     runtime: "Runtime"
     job_folder: Optional[Path] = Field(
         default_factory=lambda: Path("jobs") / datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -266,6 +266,15 @@ class JobConfig(BaseModel):
     data_mount_dir: str = "/app/data"
     extra_env: dict[str, str] = {}
     blocking: bool = Field(default=True)
+
+    def model_post_init(self, __context: Any) -> None:
+        """Ensure all paths are absolute for consistency and safety"""
+        # Convert to absolute paths
+        self.function_folder = self.function_folder.absolute()
+        if self.data_path is not None:
+            self.data_path = self.data_path.absolute()
+        if self.job_folder is not None:
+            self.job_folder = self.job_folder.absolute()
 
     @property
     def job_path(self) -> Path:
@@ -295,14 +304,17 @@ class JobConfig(BaseModel):
     def _base_env(self) -> dict[str, str]:
         interpreter = " ".join(self.runtime.cmd)
         # interpreter_str = f"'{interpreter}'" if " " in interpreter else interpreter
-        return {
+        env = {
             "OUTPUT_DIR": str(self.output_dir.absolute()),
-            "DATA_DIR": str(self.data_path.absolute()),
             "CODE_DIR": str(self.function_folder.absolute()),
             "TIMEOUT": str(self.timeout),
             "INPUT_FILE": str(self.function_folder / self.args[0]),
             "INTERPRETER": interpreter,
         }
+        # Only set DATA_DIR if data_path exists
+        if self.data_path is not None:
+            env["DATA_DIR"] = str(self.data_path.absolute())
+        return env
 
 
 class JobResults(BaseModel):
@@ -330,13 +342,13 @@ class JobResults(BaseModel):
     @property
     def stderr(self) -> str | None:
         if self.stderr_file.exists():
-            return self.stderr_file.read_text()
+            return self.stderr_file.read_text(errors="replace")
         return None
 
     @property
     def stdout(self) -> str | None:
         if self.stdout_file.exists():
-            return self.stdout_file.read_text()
+            return self.stdout_file.read_text(errors="replace")
         return None
 
     @property
@@ -404,7 +416,7 @@ def load_output_file(filepath: Path, max_size: int) -> Any:
         return pd.read_csv(filepath)
 
     elif filepath.suffix in {".txt", ".log", ".md", ".html"}:
-        with open(filepath, "r") as f:
+        with open(filepath, "r", errors="replace") as f:
             return f.read()
 
     else:

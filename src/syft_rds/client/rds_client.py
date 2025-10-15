@@ -406,6 +406,11 @@ class RDSClient(RDSClientBase):
         show_stderr: bool = True,
         blocking: bool = True,
     ) -> Job:
+        if job.dataset_name is None:
+            raise ValueError(
+                "Cannot run job in mock mode without a dataset_name. "
+                "Mock mode requires a dataset with mock data."
+            )
         logger.debug(f"Running job '{job.name}' on mock data")
         job_config: JobConfig = self._get_config_for_job(job, blocking=blocking)
         job_config.data_path = self.dataset.get(name=job.dataset_name).get_mock_path()
@@ -421,7 +426,24 @@ class RDSClient(RDSClientBase):
 
     def _get_config_for_job(self, job: Job, blocking: bool = True) -> JobConfig:
         user_code = self.user_code.get(job.user_code_id)
-        dataset = self.dataset.get(name=job.dataset_name)
+
+        # Try to get dataset, set None if not found (for jobs that don't need data)
+        if job.dataset_name is None:
+            logger.debug(
+                "Job has no dataset_name. Job will run without data_path "
+                "(suitable for aggregator or data collection jobs)."
+            )
+            data_path = None
+        else:
+            try:
+                dataset = self.dataset.get(name=job.dataset_name)
+                data_path = dataset.get_private_path()
+            except (ValueError, Exception) as e:
+                logger.debug(
+                    f"Dataset '{job.dataset_name}' not found or inaccessible: {e}. "
+                    f"Job will run without data_path (suitable for aggregator or data collection jobs)."
+                )
+                data_path = None
 
         # Get runtime or use default Python runtime
         if job.runtime_id is not None:
@@ -443,7 +465,7 @@ class RDSClient(RDSClientBase):
             )
 
         job_config = JobConfig(
-            data_path=dataset.get_private_path(),
+            data_path=data_path,
             function_folder=user_code.local_dir,
             runtime=runtime,
             args=[user_code.entrypoint],

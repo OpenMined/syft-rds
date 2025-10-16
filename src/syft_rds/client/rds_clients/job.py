@@ -321,7 +321,8 @@ class JobRDSClient(RDSClientModule[Job]):
             job: Job object or UUID of the job
 
         Returns:
-            dict with 'stdout' and 'stderr' keys containing log contents
+            dict with 'logs_dir', 'stdout', and 'stderr' keys
+            Format matches get_output_dir() for consistency.
 
         Raises:
             ValueError: If logs directory doesn't exist
@@ -341,6 +342,7 @@ class JobRDSClient(RDSClientModule[Job]):
         stderr_file = logs_dir / "stderr.log"
 
         return {
+            "logs_dir": str(logs_dir),
             "stdout": stdout_file.read_text() if stdout_file.exists() else "",
             "stderr": stderr_file.read_text() if stderr_file.exists() else "",
         }

@@ -197,3 +197,7 @@ tests/assets/ds/code_with_deps/uv.lock
 
 # MacOS
 .DS_Store
+
+# ai stuff
+CLAUDE.md
+.claude/

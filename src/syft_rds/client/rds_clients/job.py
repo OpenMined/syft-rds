@@ -345,6 +345,85 @@ class JobRDSClient(RDSClientModule[Job]):
             "stderr": stderr_file.read_text() if stderr_file.exists() else "",
         }
 
+    def get_output_dir(self, job: Union[Job, UUID]) -> dict[str, Any]:
+        """Get the output directory and all files for a job.
+
+        Args:
+            job: Job object or UUID of the job
+
+        Returns:
+            dict with 'output_dir' (str) and 'files' (dict mapping relative_path to content)
+            Format matches get_job_code() for consistency with rds-dashboard.
+
+        Raises:
+            ValueError: If output directory doesn't exist
+        """
+        if isinstance(job, UUID):
+            job = self.get(uid=job, mode="local")
+
+        output_dir = (self._get_job_output_folder() / job.uid.hex / "output").resolve()
+
+        if not output_dir.exists():
+            raise ValueError(
+                f"Output directory does not exist for job {job.uid} at {output_dir}. "
+                f"Job may not have been executed yet or produced no output."
+            )
+
+        # Read all files recursively (skip directories - frontend builds tree from paths)
+        files = {}
+        for file_path in output_dir.rglob("*"):
+            # Skip directories - frontend will infer them from file paths
+            if file_path.is_dir():
+                continue
+
+            relative_path = str(file_path.relative_to(output_dir))
+
+            # Try to read as text, fall back to binary/error indicator
+            try:
+                files[relative_path] = file_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                # File contains non-UTF-8 bytes (binary file)
+                try:
+                    file_size = file_path.stat().st_size
+                    size_str = (
+                        f"{file_size / (1024**2):.2f} MB"
+                        if file_size > 1024 * 1024
+                        else f"{file_size / 1024:.2f} KB"
+                        if file_size > 1024
+                        else f"{file_size} bytes"
+                    )
+                    files[relative_path] = (
+                        f"This file cannot be displayed as it contains non-UTF-8 bytes. File size: {size_str}."
+                    )
+                    logger.debug(f"Binary file detected: {file_path} ({size_str})")
+                except Exception as size_error:
+                    files[relative_path] = (
+                        "This file cannot be displayed as it contains non-UTF-8 bytes."
+                    )
+                    logger.debug(
+                        f"Binary file detected: {file_path} (size unavailable: {size_error})"
+                    )
+            except Exception as e:
+                # Other errors (permission, I/O errors, etc.)
+                logger.warning(f"Error reading {file_path}: {e}")
+                try:
+                    file_size = file_path.stat().st_size
+                    size_str = (
+                        f"{file_size / (1024**2):.2f} MB"
+                        if file_size > 1024 * 1024
+                        else f"{file_size / 1024:.2f} KB"
+                        if file_size > 1024
+                        else f"{file_size} bytes"
+                    )
+                    files[relative_path] = f"Error reading file ({size_str}): {str(e)}"
+                except Exception:
+                    files[relative_path] = f"Error reading file: {str(e)}"
+
+        return {
+            "output_dir": str(output_dir),
+            "files": files,
+        }
+
     def show_logs(
         self, job: Union[Job, UUID], show_stdout: bool = True, show_stderr: bool = True
     ) -> None:

@@ -358,43 +358,94 @@ class JobRDSClient(RDSClientModule[Job]):
         Raises:
             ValueError: If logs directory doesn't exist
         """
+        import html
+
         logs = self.get_logs(job)
 
         # Try to use IPython display if available (for Jupyter notebooks)
         try:
             from IPython.display import HTML, display
+            import uuid
 
             html_parts = []
 
+            # Add JavaScript for copy functionality (only once)
+            copy_script = """
+            <script>
+            function copyToClipboard(elementId, buttonId) {
+                const text = document.getElementById(elementId).textContent;
+                navigator.clipboard.writeText(text).then(function() {
+                    const button = document.getElementById(buttonId);
+                    const originalText = button.innerHTML;
+                    button.innerHTML = '✓ Copied!';
+                    button.style.backgroundColor = '#4caf50';
+                    setTimeout(function() {
+                        button.innerHTML = originalText;
+                        button.style.backgroundColor = '#555';
+                    }, 2000);
+                }).catch(function(err) {
+                    console.error('Failed to copy: ', err);
+                });
+            }
+            </script>
+            """
+            html_parts.append(copy_script)
+
             if show_stdout and logs["stdout"]:
-                # Terminal-style dark background
+                stdout_id = f"stdout_{uuid.uuid4().hex[:8]}"
+                copy_btn_id = f"copy_stdout_{uuid.uuid4().hex[:8]}"
+                # Escape HTML in logs to prevent injection
+                escaped_stdout = html.escape(logs["stdout"])
+
                 stdout_html = f"""
                 <div style="margin-bottom: 20px;">
-                    <h3 style="color: #4caf50; margin-bottom: 10px;">📄 STDOUT</h3>
-                    <pre style="background-color: #1e1e1e;
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h3 style="color: #4caf50; margin: 0;">📄 STDOUT</h3>
+                        <button id="{copy_btn_id}"
+                                onclick="copyToClipboard('{stdout_id}', '{copy_btn_id}')"
+                                style="background-color: #555; color: white; border: none;
+                                       padding: 8px 16px; border-radius: 4px; cursor: pointer;
+                                       font-size: 12px; transition: all 0.3s;">
+                            📋 Copy
+                        </button>
+                    </div>
+                    <pre id="{stdout_id}" style="background-color: #1e1e1e;
                                 color: #e0e0e0;
                                 padding: 15px; border-radius: 5px;
                                 border-left: 4px solid #4caf50; overflow-x: auto;
-                                font-family: 'Courier New', monospace; font-size: 12px;">{logs["stdout"]}</pre>
+                                font-family: 'Courier New', monospace; font-size: 12px;">{escaped_stdout}</pre>
                 </div>
                 """
                 html_parts.append(stdout_html)
 
             if show_stderr and logs["stderr"]:
-                # Terminal-style dark background
+                stderr_id = f"stderr_{uuid.uuid4().hex[:8]}"
+                copy_btn_id = f"copy_stderr_{uuid.uuid4().hex[:8]}"
+                # Escape HTML in logs to prevent injection
+                escaped_stderr = html.escape(logs["stderr"])
+
                 stderr_html = f"""
                 <div style="margin-bottom: 20px;">
-                    <h3 style="color: #ff5252; margin-bottom: 10px;">🛠️ STDERR</h3>
-                    <pre style="background-color: #1e1e1e;
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h3 style="color: #ff5252; margin: 0;">🛠️ STDERR</h3>
+                        <button id="{copy_btn_id}"
+                                onclick="copyToClipboard('{stderr_id}', '{copy_btn_id}')"
+                                style="background-color: #555; color: white; border: none;
+                                       padding: 8px 16px; border-radius: 4px; cursor: pointer;
+                                       font-size: 12px; transition: all 0.3s;">
+                            📋 Copy
+                        </button>
+                    </div>
+                    <pre id="{stderr_id}" style="background-color: #1e1e1e;
                                 color: #e0e0e0;
                                 padding: 15px; border-radius: 5px;
                                 border-left: 4px solid #ff5252; overflow-x: auto;
-                                font-family: 'Courier New', monospace; font-size: 12px;">{logs["stderr"]}</pre>
+                                font-family: 'Courier New', monospace; font-size: 12px;">{escaped_stderr}</pre>
                 </div>
                 """
                 html_parts.append(stderr_html)
 
-            if not html_parts:
+            if not html_parts or len(html_parts) == 1:  # Only script, no logs
                 display(HTML("<p><i>No logs to display</i></p>"))
             else:
                 display(HTML("".join(html_parts)))

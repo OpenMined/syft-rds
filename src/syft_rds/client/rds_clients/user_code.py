@@ -22,7 +22,25 @@ class UserCodeRDSClient(RDSClientModule[UserCode]):
         code_path: PathLike,
         name: str | None = None,
         entrypoint: str | None = None,
+        ignore_patterns: list[str] | None = None,
     ) -> UserCode:
+        """Create a new UserCode object from a file or directory.
+
+        Args:
+            code_path: Path to the code file or directory
+            name: Optional name for the user code
+            entrypoint: Entry point file for folder-type code (required for folders)
+            ignore_patterns: Optional list of patterns to ignore when zipping.
+                        If None, uses default ignore patterns (.venv, __pycache__, etc.).
+                        Pass [] to include all files.
+
+        Returns:
+            UserCode: The created user code object
+
+        Raises:
+            FileNotFoundError: If code_path or entrypoint doesn't exist
+            ValueError: If entrypoint is not provided for folder-type code
+        """
         code_path = Path(code_path)
         if not code_path.exists():
             raise FileNotFoundError(f"Path {code_path} does not exist.")
@@ -43,14 +61,19 @@ class UserCodeRDSClient(RDSClientModule[UserCode]):
             # Generate uv.lock if needed (ensures reproducible environments across DOs)
             _generate_uv_lock(code_path)
 
-            files_zipped = zip_to_bytes(files_or_dirs=[code_path], base_dir=code_path)
+            files_zipped = zip_to_bytes(
+                files_or_dirs=[code_path],
+                base_dir=code_path,
+                ignore_patterns=ignore_patterns,
+            )
         else:
             code_type = UserCodeType.FILE
 
             # For file-type code, the entrypoint is the file name
             entrypoint = entrypoint or code_path.name
 
-            files_zipped = zip_to_bytes(files_or_dirs=code_path)
+            # Single files don't need ignore patterns
+            files_zipped = zip_to_bytes(files_or_dirs=code_path, ignore_patterns=[])
 
         user_code_create = UserCodeCreate(
             name=name,

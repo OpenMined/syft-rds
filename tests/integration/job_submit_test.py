@@ -143,3 +143,157 @@ def test_job_submit_without_runtime(
     assert job is not None
     assert job.status == JobStatus.pending_code_review
     assert job.runtime_id is None
+
+
+def test_job_submit_with_ignore_patterns(
+    ds_rds_client: RDSClient,
+    do_rds_client: RDSClient,
+    tmp_path,
+):
+    """Test that ignore patterns work when submitting jobs."""
+    # DO: create dataset
+    create_dataset(do_rds_client, name="test_dataset")
+
+    # DS: create code directory with files that should be ignored
+    code_dir = tmp_path / "test_code"
+    code_dir.mkdir()
+
+    # Create main entrypoint
+    (code_dir / "main.py").write_text("print('Hello from main')")
+    (code_dir / "utils.py").write_text("def helper(): pass")
+
+    # Create files that should be ignored by default
+    (code_dir / ".venv").mkdir()
+    (code_dir / ".venv" / "lib.py").write_text("# venv file")
+
+    (code_dir / "__pycache__").mkdir()
+    (code_dir / "__pycache__" / "main.pyc").write_text("# compiled")
+
+    (code_dir / "test.pyc").write_text("# compiled file")
+    (code_dir / ".DS_Store").write_text("# mac file")
+
+    # DS: submit job with default ignore patterns (should ignore .venv, __pycache__, etc.)
+    job = ds_rds_client.job.submit(
+        name="Job with Ignore Patterns",
+        user_code_path=code_dir,
+        entrypoint="main.py",
+        dataset_name="test_dataset",
+    )
+
+    assert job is not None
+    assert job.status == JobStatus.pending_code_review
+
+    # Verify that the uploaded code doesn't contain ignored files
+    user_code = ds_rds_client.user_code.get(uid=job.user_code_id, mode="local")
+
+    # Check the extracted files in local_dir
+    local_dir = user_code.local_dir
+    all_files = [f.relative_to(local_dir) for f in local_dir.rglob("*") if f.is_file()]
+    all_files_str = [str(f) for f in all_files]
+
+    # Should include source files
+    assert any(
+        "main.py" in f for f in all_files_str
+    ), f"main.py not found in {all_files_str}"
+    assert any(
+        "utils.py" in f for f in all_files_str
+    ), f"utils.py not found in {all_files_str}"
+
+    # Should NOT include ignored files
+    assert not any(
+        ".venv" in f for f in all_files_str
+    ), f"Found .venv in {all_files_str}"
+    assert not any(
+        "__pycache__" in f for f in all_files_str
+    ), f"Found __pycache__ in {all_files_str}"
+    assert not any(
+        f.endswith(".pyc") for f in all_files_str
+    ), f"Found .pyc files in {all_files_str}"
+    assert not any(
+        ".DS_Store" in f for f in all_files_str
+    ), f"Found .DS_Store in {all_files_str}"
+
+
+def test_job_submit_with_custom_ignore_patterns(
+    ds_rds_client: RDSClient,
+    do_rds_client: RDSClient,
+    tmp_path,
+):
+    """Test submitting jobs with custom ignore patterns."""
+    # DO: create dataset
+    create_dataset(do_rds_client, name="test_dataset")
+
+    # DS: create code directory
+    code_dir = tmp_path / "custom_ignore_code"
+    code_dir.mkdir()
+
+    (code_dir / "main.py").write_text("print('Main')")
+    (code_dir / "config.json").write_text("{}")
+    (code_dir / "secret.key").write_text("secret")
+    (code_dir / "data.csv").write_text("a,b,c")
+
+    # Submit with custom ignore patterns: only ignore .key and .csv files
+    job = ds_rds_client.job.submit(
+        name="Custom Ignore Job",
+        user_code_path=code_dir,
+        entrypoint="main.py",
+        dataset_name="test_dataset",
+        ignore_patterns=["*.key", "*.csv"],
+    )
+
+    assert job is not None
+
+    # Verify uploaded files
+    user_code = ds_rds_client.user_code.get(uid=job.user_code_id, mode="local")
+    local_dir = user_code.local_dir
+    all_files = [f.relative_to(local_dir) for f in local_dir.rglob("*") if f.is_file()]
+    all_files_str = [str(f) for f in all_files]
+
+    # Should include
+    assert any("main.py" in f for f in all_files_str)
+    assert any("config.json" in f for f in all_files_str)
+
+    # Should NOT include (custom ignores)
+    assert not any("secret.key" in f for f in all_files_str)
+    assert not any("data.csv" in f for f in all_files_str)
+
+
+def test_job_submit_with_no_ignore_patterns(
+    ds_rds_client: RDSClient,
+    do_rds_client: RDSClient,
+    tmp_path,
+):
+    """Test submitting jobs with ignore_patterns=[] to include all files."""
+    # DO: create dataset
+    create_dataset(do_rds_client, name="test_dataset")
+
+    # DS: create code directory with normally-ignored files
+    code_dir = tmp_path / "no_ignore_code"
+    code_dir.mkdir()
+
+    (code_dir / "main.py").write_text("print('Main')")
+    (code_dir / ".venv").mkdir()
+    (code_dir / ".venv" / "lib.py").write_text("# venv")
+    (code_dir / "test.pyc").write_text("# compiled")
+
+    # Submit with empty ignore list = include everything
+    job = ds_rds_client.job.submit(
+        name="No Ignore Job",
+        user_code_path=code_dir,
+        entrypoint="main.py",
+        dataset_name="test_dataset",
+        ignore_patterns=[],  # Empty list = ignore nothing
+    )
+
+    assert job is not None
+
+    # Verify all files are included
+    user_code = ds_rds_client.user_code.get(uid=job.user_code_id, mode="local")
+    local_dir = user_code.local_dir
+    all_files = [f.relative_to(local_dir) for f in local_dir.rglob("*") if f.is_file()]
+    all_files_str = [str(f) for f in all_files]
+
+    # Everything should be included
+    assert any("main.py" in f for f in all_files_str)
+    assert any(".venv" in f and "lib.py" in f for f in all_files_str)
+    assert any("test.pyc" in f for f in all_files_str)

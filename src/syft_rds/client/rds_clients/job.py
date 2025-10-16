@@ -36,8 +36,27 @@ class JobRDSClient(RDSClientModule[Job]):
         custom_function: Optional[Union[CustomFunction, UUID]] = None,
         runtime_name: Optional[str] = None,
         enclave: str = "",
+        ignore_patterns: Optional[list[str]] = None,
     ) -> Job:
-        """`submit` is a convenience method to create both a UserCode and a Job in one call."""
+        """`submit` is a convenience method to create both a UserCode and a Job in one call.
+
+        Args:
+            user_code_path: Path to the code file or directory
+            dataset_name: Name of the dataset to use (optional)
+            entrypoint: Entry point file for folder-type code
+            name: Optional name for the job
+            description: Optional description for the job
+            tags: Optional tags for the job
+            custom_function: Optional CustomFunction or UUID to use
+            runtime_name: Optional runtime name to use
+            enclave: Optional enclave to use
+            ignore_patterns: Optional list of patterns to ignore when uploading code.
+                           If None, uses default ignore patterns (.venv, __pycache__, etc.).
+                           Pass [] to include all files.
+
+        Returns:
+            Job: The created job
+        """
         if custom_function is not None:
             custom_function_id = self._resolve_custom_func_id(custom_function)
             custom_function = (
@@ -52,7 +71,9 @@ class JobRDSClient(RDSClientModule[Job]):
             entrypoint = custom_function.entrypoint
 
         user_code = self.rds.user_code.create(
-            code_path=user_code_path, entrypoint=entrypoint
+            code_path=user_code_path,
+            entrypoint=entrypoint,
+            ignore_patterns=ignore_patterns,
         )
 
         if runtime_name is not None:
@@ -84,14 +105,17 @@ class JobRDSClient(RDSClientModule[Job]):
         self,
         dataset_name: Optional[str],
         custom_function: Union[CustomFunction, UUID],
+        ignore_patterns: Optional[list[str]] = None,
         **params: Any,
     ) -> Job:
         """
-        Utility method to a job with parameters for a custom function.
+        Utility method to submit a job with parameters for a custom function.
 
         Args:
             dataset_name (str): The name of the dataset to use.
             custom_function (Union[CustomFunction, UUID]): The custom function to use.
+            ignore_patterns: Optional list of patterns to ignore when uploading code.
+                        If None, uses default ignore patterns (.venv, __pycache__, etc.).
             **params: Additional parameters to pass to the custom function.
 
         Returns:
@@ -123,6 +147,7 @@ class JobRDSClient(RDSClientModule[Job]):
                 user_code_path=user_params_path,
                 dataset_name=dataset_name,
                 custom_function=custom_function,
+                ignore_patterns=ignore_patterns,
             )
 
     def _resolve_custom_func_id(

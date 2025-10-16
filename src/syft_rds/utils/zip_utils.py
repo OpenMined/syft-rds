@@ -5,6 +5,62 @@ from zipfile import ZipFile
 
 PathLike = Union[str, Path]
 
+# Default patterns to ignore when zipping code directories
+DEFAULT_IGNORE_PATTERNS = [
+    ".venv",
+    "venv",
+    "__pycache__",
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+    ".git",
+    ".gitignore",
+    ".DS_Store",
+    "*.egg-info",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "node_modules",
+    ".ipynb_checkpoints",
+    ".idea",
+    ".vscode",
+    "*.swp",
+    "*.swo",
+    "*~",
+]
+
+
+def _should_ignore(path: Path, base_dir: Path, ignore_patterns: List[str]) -> bool:
+    """Check if a path should be ignored based on patterns.
+
+    Args:
+        path: Path to check
+        base_dir: Base directory for relative path matching
+        ignore_patterns: List of patterns to match (supports wildcards)
+
+    Returns:
+        True if path should be ignored
+    """
+    try:
+        relative_path = path.relative_to(base_dir)
+    except ValueError:
+        # Path is not relative to base_dir, don't ignore
+        return False
+
+    # Check each part of the path against patterns
+    for part in relative_path.parts:
+        for pattern in ignore_patterns:
+            # Direct match or glob pattern match
+            if part == pattern or Path(part).match(pattern):
+                return True
+
+    # Also check the full relative path against patterns
+    for pattern in ignore_patterns:
+        if relative_path.match(pattern):
+            return True
+
+    return False
+
 
 def extract_zip(zip_data: bytes, target_dir: PathLike) -> None:
     """Extract zip data to a target directory.
@@ -18,18 +74,26 @@ def extract_zip(zip_data: bytes, target_dir: PathLike) -> None:
 
 
 def zip_to_bytes(
-    files_or_dirs: Union[PathLike, List[PathLike]], base_dir: Optional[PathLike] = None
+    files_or_dirs: Union[PathLike, List[PathLike]],
+    base_dir: Optional[PathLike] = None,
+    ignore_patterns: Optional[List[str]] = None,
 ) -> bytes:
     """Create a zip file from files or directories, returning the zip content as bytes.
 
     Args:
         files_or_dirs: Single path or list of paths to include
         base_dir: Optional base directory for relative paths in the zip
+        ignore_patterns: Optional list of patterns to ignore (e.g., '.venv', '*.pyc').
+                        If None, uses DEFAULT_IGNORE_PATTERNS. Pass [] to ignore nothing.
 
     Returns:
         Bytes containing the zip file
     """
     buffer = BytesIO()
+
+    # Use default ignore patterns if none provided
+    if ignore_patterns is None:
+        ignore_patterns = DEFAULT_IGNORE_PATTERNS
 
     with ZipFile(buffer, "w") as z:
         paths = (
@@ -47,6 +111,12 @@ def zip_to_bytes(
             elif path.is_dir():
                 for file_path in path.rglob("*"):
                     if file_path.is_file():
+                        # Check if file should be ignored
+                        if ignore_patterns and _should_ignore(
+                            file_path, path, ignore_patterns
+                        ):
+                            continue
+
                         arcname = (
                             file_path.name
                             if base_dir is None

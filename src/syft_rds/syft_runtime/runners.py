@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import threading
 import time
@@ -250,8 +251,13 @@ class PythonRunner(JobRunner):
         if runtime_config.use_uv and pyproject_path.exists():
             logger.debug(f"Using 'uv run' for job execution (found {pyproject_path})")
 
-            # Build command with optional --frozen flag
+            # Build command with UV-specific arguments
             cmd = ["uv", "run"]
+
+            # Add user-provided UV arguments (e.g., --active)
+            if job_config.uv_args:
+                cmd.extend(job_config.uv_args)
+                logger.debug(f"Using UV args: {job_config.uv_args}")
 
             # Add --frozen if uv.lock exists (speeds up subsequent runs)
             uv_lock_path = job_config.function_folder / "uv.lock"
@@ -269,16 +275,27 @@ class PythonRunner(JobRunner):
                     *job_config.args[1:],
                 ]
             )
+
+            # Format command as shell string for cleaner logs
+            cmd_str = " ".join(shlex.quote(str(arg)) for arg in cmd)
+            logger.debug(f"Run command: {cmd_str}")
+
             return cmd
         else:
             # Fallback to regular python execution
             logger.debug("Using standard Python execution")
-            return [
+            cmd = [
                 *job_config.runtime.cmd,
                 "-u",  # Force unbuffered output for real-time streaming
                 str(script_path),
                 *job_config.args[1:],
             ]
+
+            # Format command as shell string for cleaner logs
+            cmd_str = " ".join(shlex.quote(str(arg)) for arg in cmd)
+            logger.debug(f"Run command: {cmd_str}")
+
+            return cmd
 
 
 class DockerRunner(JobRunner):

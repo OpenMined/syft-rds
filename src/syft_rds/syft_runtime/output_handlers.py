@@ -118,7 +118,7 @@ class RichConsoleUI(JobOutputHandler):
                 "\n".join(
                     [
                         "[bold green]Starting job[/]",
-                        f"[bold white]Execution:[/] [cyan]{' '.join(job_config.runtime.cmd)} {' '.join(job_config.args)}[/]",
+                        f"[bold white]Execution:[/] [cyan]{_format_execution_command(job_config)}[/]",
                         f"[bold white]Dataset Dir:[/]  [cyan]{_format_path(job_config.data_path)}[/]",
                         f"[bold white]Output Dir:[/]   [cyan]{_format_path(job_config.output_dir)}[/]",
                         f"[bold white]Timeout:[/]  [cyan]{job_config.timeout}s[/]",
@@ -188,7 +188,7 @@ class TextUI(JobOutputHandler):
         # Build the output
         output_lines = [
             f"\n{first_line}",
-            f"Execution:    {' '.join(config.runtime.cmd)} {' '.join(config.args)}",
+            f"Execution:    {_format_execution_command(config)}",
             f"Dataset Dir: {_format_path(config.data_path)}",
             f"Output Dir:  {_format_path(config.output_dir)}",
             f"Timeout:      {config.timeout}s",
@@ -238,3 +238,31 @@ def _format_path(path: Optional[Path]) -> str:
     if path is None:
         return "—"
     return str(path)
+
+
+def _format_execution_command(job_config: JobConfig) -> str:
+    """Format the execution command for display, including UV if applicable."""
+    runtime_config = job_config.runtime.config
+    pyproject_path = job_config.function_folder / "pyproject.toml"
+
+    # Check if UV is being used
+    if runtime_config.use_uv and pyproject_path.exists():
+        cmd_parts = ["uv", "run"]
+
+        # Add UV-specific arguments
+        if job_config.uv_args:
+            cmd_parts.extend(job_config.uv_args)
+
+        # Add --frozen if uv.lock exists
+        uv_lock_path = job_config.function_folder / "uv.lock"
+        if uv_lock_path.exists():
+            cmd_parts.append("--frozen")
+
+        cmd_parts.extend(["--directory", "...", "python", "-u"])
+        cmd_parts.extend(job_config.args)
+    else:
+        # Standard Python execution
+        cmd_parts = [*job_config.runtime.cmd, "-u"]
+        cmd_parts.extend(job_config.args)
+
+    return " ".join(cmd_parts)

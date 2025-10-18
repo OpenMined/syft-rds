@@ -373,6 +373,8 @@ class RDSClient(RDSClientBase):
         show_stdout: bool = True,
         show_stderr: bool = True,
         blocking: bool = True,
+        uv_args: list[str] = [],
+        script_args: list[str] = [],
     ) -> Job:
         if job.status == JobStatus.rejected:
             raise ValueError(
@@ -380,7 +382,9 @@ class RDSClient(RDSClientBase):
                 "If you want to override this, set `job.status` to something else."
             )
         logger.debug(f"Running job '{job.name}' on private data")
-        job_config: JobConfig = self._get_config_for_job(job, blocking=blocking)
+        job_config: JobConfig = self._get_config_for_job(
+            job, blocking=blocking, uv_args=uv_args, script_args=script_args
+        )
         result = self._run(
             job,
             job_config,
@@ -424,7 +428,13 @@ class RDSClient(RDSClientBase):
         logger.info(f"Result from running job '{job.name}' on mock data: {result}")
         return job
 
-    def _get_config_for_job(self, job: Job, blocking: bool = True) -> JobConfig:
+    def _get_config_for_job(
+        self,
+        job: Job,
+        blocking: bool = True,
+        uv_args: list[str] = [],
+        script_args: list[str] = [],
+    ) -> JobConfig:
         user_code = self.user_code.get(job.user_code_id)
 
         # Try to get dataset, set None if not found (for jobs that don't need data)
@@ -468,7 +478,8 @@ class RDSClient(RDSClientBase):
             data_path=data_path,
             function_folder=user_code.local_dir,
             runtime=runtime,
-            args=[user_code.entrypoint],
+            args=[user_code.entrypoint, *script_args],
+            uv_args=uv_args,
             job_folder=runner_config.job_output_folder / job.uid.hex,
             timeout=runner_config.timeout,
             blocking=blocking,

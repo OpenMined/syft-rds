@@ -257,6 +257,7 @@ class JobConfig(BaseModel):
 
     function_folder: Path
     args: list[str]
+    uv_args: list[str] = []  # Arguments for 'uv run' command (e.g., --active, --frozen)
     data_path: Optional[Path] = None  # None for jobs that don't need pre-existing data
     runtime: "Runtime"
     job_folder: Optional[Path] = Field(

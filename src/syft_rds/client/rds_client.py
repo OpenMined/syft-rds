@@ -374,7 +374,7 @@ class RDSClient(RDSClientBase):
         show_stderr: bool = True,
         blocking: bool = True,
         uv_args: list[str] = [],
-        script_args: list[str] = [],
+        args: list[str] = [],
     ) -> Job:
         if job.status == JobStatus.rejected:
             raise ValueError(
@@ -383,7 +383,7 @@ class RDSClient(RDSClientBase):
             )
         logger.debug(f"Running job '{job.name}' on private data")
         job_config: JobConfig = self._get_config_for_job(
-            job, blocking=blocking, uv_args=uv_args, script_args=script_args
+            job, blocking=blocking, uv_args=uv_args, args=args
         )
         result = self._run(
             job,
@@ -433,7 +433,7 @@ class RDSClient(RDSClientBase):
         job: Job,
         blocking: bool = True,
         uv_args: list[str] = [],
-        script_args: list[str] = [],
+        args: list[str] = [],
     ) -> JobConfig:
         user_code = self.user_code.get(job.user_code_id)
 
@@ -478,7 +478,7 @@ class RDSClient(RDSClientBase):
             data_path=data_path,
             function_folder=user_code.local_dir,
             runtime=runtime,
-            args=[user_code.entrypoint, *script_args],
+            args=[user_code.entrypoint, *args],
             uv_args=uv_args,
             job_folder=runner_config.job_output_folder / job.uid.hex,
             timeout=runner_config.timeout,

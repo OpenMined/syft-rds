@@ -51,8 +51,8 @@ class JobRDSClient(RDSClientModule[Job]):
             runtime_name: Optional runtime name to use
             enclave: Optional enclave to use
             ignore_patterns: Optional list of patterns to ignore when uploading code.
-                           If None, uses default ignore patterns (.venv, __pycache__, etc.).
-                           Pass [] to include all files.
+                        If None, uses default ignore patterns (.venv, __pycache__, etc.).
+                        Pass [] to include all files.
 
         Returns:
             Job: The created job

@@ -15,6 +15,7 @@ from syft_rds.models import (
     Job,
     JobConfig,
     JobUpdate,
+    PythonRuntimeConfig,
     RuntimeKind,
 )
 from syft_rds.syft_runtime.mounts import get_mount_provider
@@ -248,7 +249,11 @@ class PythonRunner(JobRunner):
         runtime_config = job_config.runtime.config
         pyproject_path = job_config.function_folder / "pyproject.toml"
 
-        if runtime_config.use_uv and pyproject_path.exists():
+        if (
+            isinstance(runtime_config, PythonRuntimeConfig)
+            and runtime_config.use_uv
+            and pyproject_path.exists()
+        ):
             logger.debug(f"Using 'uv run' for job execution (found {pyproject_path})")
 
             # Build command with UV-specific arguments

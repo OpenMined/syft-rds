@@ -7,7 +7,7 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.spinner import Spinner
 
-from syft_rds.models import JobConfig
+from syft_rds.models import JobConfig, PythonRuntimeConfig
 
 
 def parse_log_level(line: str) -> tuple[str | None, str]:
@@ -246,7 +246,11 @@ def _format_execution_command(job_config: JobConfig) -> str:
     pyproject_path = job_config.function_folder / "pyproject.toml"
 
     # Check if UV is being used
-    if runtime_config.use_uv and pyproject_path.exists():
+    if (
+        isinstance(runtime_config, PythonRuntimeConfig)
+        and runtime_config.use_uv
+        and pyproject_path.exists()
+    ):
         cmd_parts = ["uv", "run"]
 
         # Add UV-specific arguments

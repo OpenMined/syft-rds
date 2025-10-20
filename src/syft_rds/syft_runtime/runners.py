@@ -401,16 +401,18 @@ class DockerRunner(JobRunner):
             error_message = f"Failed to build Docker image '{image_name}'."
             logger.error(f"{error_message} stderr: {e.stderr}")
             error_for_job = f"{error_message}\n{e.stderr}"
-            raise RuntimeError(f"Failed to build Docker image '{image_name}'.")
-        except Exception as e:
-            raise RuntimeError(f"An error occurred during Docker image build: {e}")
-        finally:
-            if error_for_job and self.update_job_status_callback:
+
+            # Update job status if callback is available
+            if self.update_job_status_callback:
                 job_failed = job.get_update_for_return_code(
-                    return_code=process.returncode,
+                    return_code=e.returncode,
                     error_message=error_for_job,
                 )
                 self.update_job_status_callback(job_failed, job)
+
+            raise RuntimeError(f"Failed to build Docker image '{image_name}'.")
+        except Exception as e:
+            raise RuntimeError(f"An error occurred during Docker image build: {e}")
 
     def _get_extra_mounts(self, job_config: JobConfig) -> list[DockerMount]:
         """Get extra mounts for a job"""

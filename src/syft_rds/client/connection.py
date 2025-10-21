@@ -16,6 +16,7 @@ from syft_event.deps import func_args_from_request
 from syft_rpc import SyftRequest, SyftResponse, rpc
 from syft_rpc.protocol import SyftMethod, SyftStatus
 from syft_rpc.rpc import BodyType
+from syft_rpc.protocol import SyftTimeoutError, SyftFuture
 
 
 class BlockingRPCConnection(ABC):
@@ -56,7 +57,7 @@ class FileSyncRPCConnection(BlockingRPCConnection):
         headers = None
 
         body = self._serialize(body)
-        future = rpc.send(
+        future: SyftFuture = rpc.send(
             url=url,
             body=body,
             headers=headers,
@@ -66,8 +67,18 @@ class FileSyncRPCConnection(BlockingRPCConnection):
         )
 
         timeout_seconds = float(rpc.parse_duration(expiry).seconds)
-        response = future.wait(timeout=timeout_seconds)
-        return response
+        try:
+            response = future.wait(timeout=timeout_seconds)
+            return response
+        except SyftTimeoutError as e:
+            # Enhance the error message to explain what happens next
+            raise SyftTimeoutError(
+                f"{str(e)}\n\n"
+                f"Note: The Data Owner's server did not respond within {timeout_seconds}s. "
+                f"However, your request has been saved and will be automatically processed "
+                f"when the Data Owner's server comes online. You can check the status later "
+                f"using the appropriate get methods (e.g., client.job.get_all())."
+            ) from e
 
 
 def check_permission(

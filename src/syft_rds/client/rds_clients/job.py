@@ -40,6 +40,11 @@ class JobRDSClient(RDSClientModule[Job]):
     ) -> Job:
         """`submit` is a convenience method to create both a UserCode and a Job in one call.
 
+        Note: If the Data Owner's server is offline when you submit, this method will
+        timeout after 5 minutes (default RPC timeout). However, your request is persisted
+        to disk and will be automatically processed when the Data Owner's server comes
+        online. You can check later with `client.job.get_all()` to see if your job was created.
+
         Args:
             user_code_path: Path to the code file or directory
             dataset_name: Name of the dataset to use (optional)
@@ -56,6 +61,11 @@ class JobRDSClient(RDSClientModule[Job]):
 
         Returns:
             Job: The created job
+
+        Raises:
+            SyftTimeoutError: If Data Owner's server doesn't respond within the timeout period
+                            (default 5 minutes). Your request is still saved and will be
+                            processed when the server comes online.
         """
         if custom_function is not None:
             custom_function_id = self._resolve_custom_func_id(custom_function)

@@ -1,5 +1,4 @@
 import subprocess
-import tomllib
 from pathlib import Path
 
 from loguru import logger
@@ -93,6 +92,12 @@ def _has_editable_dependencies(pyproject_path: Path) -> bool:
     Returns True if [tool.uv.sources] contains any entries with 'path' or 'editable' keys.
     These indicate local/editable dependencies that won't work across different filesystems.
     """
+
+    try:
+        import tomllib  # only available in Python 3.11+
+    except ImportError:
+        import tomli as tomllib
+
     try:
         with open(pyproject_path, "rb") as f:
             pyproject = tomllib.load(f)

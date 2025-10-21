@@ -74,6 +74,11 @@ def _write_app_info(app: SyftEvents) -> None:
 
 
 def create_app(client: Client | None = None) -> SyftEvents:
+    """Create SyftEvent server to detect requests for the client.
+
+    The server automatically handles offline requests - any .request files created
+    while the server is down will be processed on startup before watching for new events.
+    """
     rds_app = SyftEvents(
         app_name=APP_NAME,
         client=client,

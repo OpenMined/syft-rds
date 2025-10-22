@@ -37,6 +37,30 @@ def get_runner_cls(job_config: JobConfig) -> Type["JobRunner"]:
         raise NotImplementedError(f"Unsupported runtime kind: {runtime_kind}")
 
 
+def _check_uv_available() -> tuple[bool, str | None]:
+    """Check if uv command is available and get version.
+
+    Returns:
+        tuple[bool, str | None]: (is_available, version_string)
+    """
+    try:
+        result = subprocess.run(
+            ["uv", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            version = result.stdout.strip()
+            return True, version
+        return False, None
+    except FileNotFoundError:
+        return False, None
+    except Exception as e:
+        logger.warning(f"Failed to check uv availability: {e}")
+        return False, None
+
+
 class JobRunner:
     """Base class for running jobs."""
 
@@ -254,6 +278,15 @@ class PythonRunner(JobRunner):
             and runtime_config.use_uv
             and pyproject_path.exists()
         ):
+            # Check if uv is available before attempting to use it
+            uv_available, uv_version = _check_uv_available()
+            if not uv_available:
+                raise RuntimeError(
+                    "uv command not found but required for this job. "
+                    "Please install uv: https://docs.astral.sh/uv/getting-started/installation/"
+                )
+
+            logger.info(f"Using uv ({uv_version}) for job execution")
             logger.debug(f"Using 'uv run' for job execution (found {pyproject_path})")
 
             # Build command with UV-specific arguments

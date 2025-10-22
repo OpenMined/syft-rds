@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 from typing_extensions import Any, Optional, Union
 from uuid import UUID
+import html
 
 from loguru import logger
 
@@ -324,7 +325,7 @@ class JobRDSClient(RDSClientModule[Job]):
             )
         return self._get_results_from_dir(job, job.output_path)
 
-    def get_logs(self, job: Union[Job, UUID]) -> dict[str, str]:
+    def get_logs(self, job: Union[Job, UUID, str]) -> dict[str, str]:
         """Get the stdout and stderr logs for a job.
 
         Args:
@@ -337,6 +338,9 @@ class JobRDSClient(RDSClientModule[Job]):
         Raises:
             ValueError: If logs directory doesn't exist
         """
+        if isinstance(job, str):
+            job = UUID(job)
+
         if isinstance(job, UUID):
             job = self.get(uid=job, mode="local")
 
@@ -357,7 +361,7 @@ class JobRDSClient(RDSClientModule[Job]):
             "stderr": stderr_file.read_text() if stderr_file.exists() else "",
         }
 
-    def get_output_dir(self, job: Union[Job, UUID]) -> dict[str, Any]:
+    def get_output_dir(self, job: Union[Job, UUID, str]) -> dict[str, Any]:
         """Get the output directory and all files for a job.
 
         Args:
@@ -370,6 +374,9 @@ class JobRDSClient(RDSClientModule[Job]):
         Raises:
             ValueError: If output directory doesn't exist
         """
+        if isinstance(job, str):
+            job = UUID(job)
+
         if isinstance(job, UUID):
             job = self.get(uid=job, mode="local")
 
@@ -437,7 +444,10 @@ class JobRDSClient(RDSClientModule[Job]):
         }
 
     def show_logs(
-        self, job: Union[Job, UUID], show_stdout: bool = True, show_stderr: bool = True
+        self,
+        job: Union[Job, UUID, str],
+        show_stdout: bool = True,
+        show_stderr: bool = True,
     ) -> None:
         """Display the stdout and stderr logs for a job in a formatted way.
 
@@ -449,7 +459,8 @@ class JobRDSClient(RDSClientModule[Job]):
         Raises:
             ValueError: If logs directory doesn't exist
         """
-        import html
+        if isinstance(job, str):
+            job = UUID(job)
 
         logs = self.get_logs(job)
 
@@ -601,7 +612,7 @@ class JobRDSClient(RDSClientModule[Job]):
         return job.apply_update(new_job)
 
     def delete(
-        self, job: Union[Job, UUID], delete_orphaned_usercode: bool = True
+        self, job: Union[Job, UUID, str], delete_orphaned_usercode: bool = True
     ) -> bool:
         """Delete a single job by Job object or UUID.
 
@@ -617,6 +628,9 @@ class JobRDSClient(RDSClientModule[Job]):
         """
         if not self.is_admin:
             raise RDSValidationError("Only admins can delete jobs")
+
+        if isinstance(job, str):
+            job = UUID(job)
 
         # Get the full job object if we only have UUID
         if isinstance(job, UUID):

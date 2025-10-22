@@ -2422,22 +2422,18 @@ wheels = [
 [[package]]
 name = "syft-core"
 version = "0.3.0"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/OpenMined/syft-extras?subdirectory=packages%2Fsyft-core&branch=fix%2Frpc-request-pattern-matching#20155f54af0e1980a37ae37f38ffe372b0990460" }
 dependencies = [
     { name = "pydantic", extra = ["email"] },
     { name = "pyyaml" },
     { name = "typing-extensions" },
     { name = "wcmatch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/51/11/b8d839523c6dff526b11d238796858bf70b4c6d4c20f41259c2296a7d252/syft_core-0.3.0.tar.gz", hash = "sha256:aee35660c3b5190add2cc8c5af655c03af8d413dd30e060eefcd54baa98eeb58", size = 17509, upload-time = "2025-10-12T04:54:13.682Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b1/3f/54732f87c6fff25abdc690348a681a7fd1583ba058c61e625259adaf1f8d/syft_core-0.3.0-py3-none-any.whl", hash = "sha256:407362c44c5a028f012db99c720bdcaa497908bcf40fa18b67a4fb4e0702f51e", size = 14570, upload-time = "2025-10-12T04:54:12.628Z" },
-]
 
 [[package]]
 name = "syft-crypto"
 version = "0.1.1"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/OpenMined/syft-extras?subdirectory=packages%2Fsyft-crypto&branch=fix%2Frpc-request-pattern-matching#20155f54af0e1980a37ae37f38ffe372b0990460" }
 dependencies = [
     { name = "cryptography" },
     { name = "jwcrypto" },
@@ -2445,25 +2441,17 @@ dependencies = [
     { name = "pydantic" },
     { name = "syft-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/50/bb/ea5e50509a06ce75808456050b04ae10927dfb2d841324eb5139f545270e/syft_crypto-0.1.1.tar.gz", hash = "sha256:6f1110b54151ce3b87ce28026a1f943bb1e69968a4ab597c17a7ad92ce1437dc", size = 15233, upload-time = "2025-08-28T09:59:44.864Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/a1/d918ec761c0633fd507266689cff6139a851cbe39f2e2f251c9fab7e3956/syft_crypto-0.1.1-py3-none-any.whl", hash = "sha256:2406483daeae02770088c93d80512e914b29bd62af3f4076c78964bcc8410a28", size = 16449, upload-time = "2025-08-28T09:59:43.566Z" },
-]
 
 [[package]]
 name = "syft-event"
 version = "0.4.2"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/OpenMined/syft-extras?subdirectory=packages%2Fsyft-event&branch=fix%2Frpc-request-pattern-matching#20155f54af0e1980a37ae37f38ffe372b0990460" }
 dependencies = [
     { name = "loguru" },
     { name = "pathspec" },
     { name = "pydantic" },
     { name = "syft-rpc" },
     { name = "watchdog" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f2/a5/0f5b552cea10d03ffa3f9095b970cc3fd6254dfab5e87b7be59df8bb4359/syft_event-0.4.2.tar.gz", hash = "sha256:9fe8df2d2fcd41e487f9084a6bb067d693c276d050b1d1500dd386abe360fd52", size = 16109, upload-time = "2025-10-14T14:01:17.84Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/3f/8cf3379983da454f2a668f05d60d7e34f15b12f9d9d7235a9b02128d911d/syft_event-0.4.2-py3-none-any.whl", hash = "sha256:bc3467950c72813e14933d1c9f87df68aeff30f305f7285d782fb4fc0129f884", size = 18057, upload-time = "2025-10-14T14:01:16.848Z" },
 ]
 
 [[package]]
@@ -2481,6 +2469,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
     { name = "syft-event" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typer" },
     { name = "typing-extensions" },
 ]
@@ -2504,7 +2493,8 @@ requires-dist = [
     { name = "pydantic", extras = ["email"], specifier = ">=2.12.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=13.5.0,<14.0.0" },
-    { name = "syft-event", specifier = ">=0.4.2" },
+    { name = "syft-event", git = "https://github.com/OpenMined/syft-extras?subdirectory=packages%2Fsyft-event&branch=fix%2Frpc-request-pattern-matching" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.1" },
     { name = "typer", specifier = ">=0.12.5,<0.13.0" },
     { name = "typing-extensions", specifier = ">=4.15.0" },
 ]
@@ -2522,16 +2512,12 @@ dev = [
 [[package]]
 name = "syft-rpc"
 version = "0.4.0"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/OpenMined/syft-extras?subdirectory=packages%2Fsyft-rpc&branch=fix%2Frpc-request-pattern-matching#20155f54af0e1980a37ae37f38ffe372b0990460" }
 dependencies = [
     { name = "pydantic" },
     { name = "syft-core" },
     { name = "syft-crypto" },
     { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/38/d8/a28d119a74b6f3cc2a5ddc47550094dfd9c0bc289f2b1e8021e909803a95/syft_rpc-0.4.0.tar.gz", hash = "sha256:f806b7a50db4da239e0d96e85a0f1ab701955af672e2fc5bf3c483be27e0b3ce", size = 16830, upload-time = "2025-09-16T10:43:17.676Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/51/35/f958000ece788a547771f47c7b03ba32c02de6cdaa170347ff1068bb72e5/syft_rpc-0.4.0-py3-none-any.whl", hash = "sha256:ecbb40283d81b302709903e7132539e338183d490838f3281e5705678a7b80a7", size = 17229, upload-time = "2025-09-16T10:43:16.699Z" },
 ]
 
 [[package]]

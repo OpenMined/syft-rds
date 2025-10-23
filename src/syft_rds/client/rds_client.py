@@ -236,12 +236,7 @@ def init_session(
         syftbox_client, syftbox_client_config_path
     )
 
-    try:
-        ensure_bootstrap(syftbox_client)
-    except Exception as e:
-        logger.error(
-            f"Failed to bootstrap crypto keys for user {syftbox_client.email}: {e}"
-        )
+    ensure_bootstrap(syftbox_client)
 
     # Store job output folder in .syftbox/rds/<email>/jobs/ to keep sensitive logs local and never synced
     job_output_folder = (

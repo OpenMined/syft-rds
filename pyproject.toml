@@ -23,10 +23,6 @@ git = "https://github.com/OpenMined/syft-extras"
 subdirectory = "packages/syft-event"
 branch = "fix/rpc-request-pattern-matching"
 
-[tool.uv.sources.syft-crypto]  # for development
-git = "https://github.com/OpenMined/syft-extras"
-subdirectory = "packages/syft-crypto"
-branch = "fix/rpc-request-pattern-matching"
 
 [dependency-groups]
 dev = [

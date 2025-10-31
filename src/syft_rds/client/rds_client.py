@@ -1,5 +1,4 @@
 import atexit
-import os
 import subprocess
 import threading
 import time
@@ -19,7 +18,6 @@ from syft_event import SyftEvents
 from syft_rds.client.client_registry import GlobalClientRegistry
 from syft_rds.client.connection import get_connection
 from syft_rds.client.local_store import LocalStore
-from syft_rds.consts import SYFT_RDS_FORCE_RECREATE_KEYS
 from syft_rds.client.rds_clients.base import (
     ClientRunnerConfig,
     RDSClientBase,
@@ -238,20 +236,9 @@ def init_session(
         syftbox_client, syftbox_client_config_path
     )
 
-    # Check force recreate setting
-    force_recreate = (
-        os.environ.get(SYFT_RDS_FORCE_RECREATE_KEYS, "false").lower() == "true"
-    )
-
-    if force_recreate:
-        logger.warning(
-            "⚠️  SYFT_RDS_FORCE_RECREATE_KEYS=true detected!\n"
-            "Recreating crypto keys on startup.\n"
-            "Old encrypted data will become UNRECOVERABLE!"
-        )
-
-    ensure_bootstrap(syftbox_client, force_recreate_crypto_keys=force_recreate)
-    logger.info("🔐 End-to-end encryption enabled for FL jobs")
+    # Ensure encryption keys are set up
+    ensure_bootstrap(syftbox_client)
+    logger.info("🔐 End-to-end encryption enabled for RPC messages")
 
     # Store job output folder in .syftbox/rds/<email>/jobs/ to keep sensitive logs local and never synced
     job_output_folder = (

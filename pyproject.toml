@@ -23,7 +23,6 @@ git = "https://github.com/OpenMined/syft-extras"
 subdirectory = "packages/syft-event"
 branch = "fix/rpc-request-pattern-matching"
 
-
 [dependency-groups]
 dev = [
   "pre-commit>=4.3.0",

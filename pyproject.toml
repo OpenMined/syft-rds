@@ -18,10 +18,10 @@ dependencies = [
   "tomli>=2.0.1; python_version < '3.11'",
 ]
 
-[tool.uv.sources.syft-event]  # for development
-git = "https://github.com/OpenMined/syft-extras"
-subdirectory = "packages/syft-event"
-branch = "fix/rpc-request-pattern-matching"
+# [tool.uv.sources.syft-event]  # for development
+# git = "https://github.com/OpenMined/syft-extras"
+# subdirectory = "packages/syft-event"
+# branch = "fix/rpc-request-pattern-matching"
 
 [dependency-groups]
 dev = [

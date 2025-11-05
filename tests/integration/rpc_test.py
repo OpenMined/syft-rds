@@ -20,6 +20,7 @@ def do_syftbox_client(tmp_path: Path) -> SyftBoxClient:
     return SyftBoxClient(
         SyftClientConfig(
             email=DO_EMAIL,
+            server_url="http://localhost:8080",
             client_url="http://localhost:5000",
             path=tmp_path / "syftbox_client_config.json",
             data_dir=tmp_path / "clients" / SHARED_DATA_DIR,
@@ -32,6 +33,7 @@ def ds_syftbox_client(tmp_path: Path) -> SyftBoxClient:
     return SyftBoxClient(
         SyftClientConfig(
             email=DS_EMAIL,
+            server_url="http://localhost:8080",
             client_url="http://localhost:5001",
             path=tmp_path / "syftbox_client_config.json",
             data_dir=tmp_path / "clients" / SHARED_DATA_DIR,
@@ -46,10 +48,16 @@ def rds_server(do_syftbox_client: SyftBoxClient):
 
 def test_rpc_mocked(rds_server: SyftEvents, ds_syftbox_client):
     ds_rds_client = init_session(
-        host=DO_EMAIL, syftbox_client=ds_syftbox_client, mock_server=rds_server
+        host=DO_EMAIL,
+        email=DS_EMAIL,
+        syftbox_client=ds_syftbox_client,
+        mock_server=rds_server,
     )
     do_rds_client = init_session(
-        host=DO_EMAIL, syftbox_client=ds_syftbox_client, mock_server=rds_server
+        host=DO_EMAIL,
+        email=DO_EMAIL,
+        syftbox_client=ds_syftbox_client,
+        mock_server=rds_server,
     )
 
     info = ds_rds_client.rpc.health()

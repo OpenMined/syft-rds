@@ -52,6 +52,13 @@ def create_job(create_request: JobCreate, app: SyftEvents, request: Request) -> 
 def _handle_auto_approval(
     create_request: JobCreate, job_res: Job, app: SyftEvents, request: Request
 ) -> None:
+    # Skip auto-approval if no dataset specified
+    if not create_request.dataset_name:
+        logger.debug(
+            f"Skipping auto-approval for job {job_res.uid}: no dataset_name specified"
+        )
+        return
+
     dataset_store: YAMLStore[Dataset] = app.state.get("dataset_store")
     if not dataset_store:
         return  # Skip auto-approval if dataset_store not configured
@@ -142,6 +149,14 @@ def encrypt_data(data: bytes, public_key_path: Path, output_file_path: Path) -> 
 
 
 def _handle_enclave_update(existing_item: Job, app: SyftEvents) -> None:
+    # Skip enclave handling if no dataset specified
+    if not existing_item.dataset_name:
+        logger.warning(
+            f"Skipping enclave data encryption for job {existing_item.uid}: "
+            "no dataset_name specified"
+        )
+        return
+
     client = app.client
 
     enclave_data_dir = client.app_data("enclave") / "data" / existing_item.enclave

@@ -262,7 +262,7 @@ def test_job_delete_output_folders(do_rds_client: RDSClient, ds_rds_client: RDSC
     # Create mock output folders to simulate job execution
     if job.output_url:
         job_output_path = job.output_url.to_local_path(
-            do_rds_client._syftbox_client.datasites
+            do_rds_client.syftbox_client.datasites
         )
         job_output_path.mkdir(parents=True, exist_ok=True)
         (job_output_path / "test_output.txt").write_text("test content")

@@ -63,7 +63,7 @@ class ItemBase(BaseModel, ABC):
 
     @property
     def _syftbox_client(self) -> SyftBoxClient:
-        return self._client._syftbox_client
+        return self._client.syftbox_client
 
     @classmethod
     def type_name(cls) -> str:

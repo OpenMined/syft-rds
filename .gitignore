@@ -182,12 +182,22 @@ notebooks/quickstart/full_flow_notebook_test
 # VSCode
 .vscode/
 
+# tests artifacts
+tests/__pycache__/
 .e2e/
 job_outputs/
 .logs/
 .clients/
 .server/
 tmp/
+**/.syftbox/
+**/local_syftbox_network/
+tests/assets/ds/code_with_deps/uv.lock
+
 
 # MacOS
 .DS_Store
+
+# ai stuff
+CLAUDE.md
+.claude/

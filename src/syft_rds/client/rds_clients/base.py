@@ -15,6 +15,7 @@ from syft_core import Client as SyftBoxClient
 
 from syft_rds.client.local_store import LocalStore
 from syft_rds.client.rpc import RPCClient, T
+from syft_rds.client.utils import deprecation_warning
 from syft_rds.models import GetAllRequest, GetOneRequest, Job, Runtime
 
 if TYPE_CHECKING:
@@ -24,9 +25,7 @@ if TYPE_CHECKING:
 class ClientRunnerConfig(BaseModel):
     runtime: Optional[Runtime] = None
     timeout: int = 60
-    job_output_folder: Path = Field(
-        default_factory=lambda: Path(".server/syft-rds-jobs")
-    )
+    job_output_folder: Optional[Path] = None
 
 
 class RDSClientConfig(BaseModel):
@@ -50,12 +49,19 @@ class RDSClientBase:
         return self.config.host
 
     @property
-    def _syftbox_client(self) -> SyftBoxClient:
+    def syftbox_client(self) -> SyftBoxClient:
+        """Access the underlying SyftBox client for direct operations."""
         return self.rpc.connection.sender_client
 
     @property
+    @deprecation_warning("Use syftbox_client instead.")
+    def _syftbox_client(self) -> SyftBoxClient:
+        """Deprecated: Use syftbox_client instead."""
+        return self.syftbox_client
+
+    @property
     def email(self) -> str:
-        return self._syftbox_client.email
+        return self.syftbox_client.email
 
     @property
     def is_admin(self) -> bool:

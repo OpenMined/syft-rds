@@ -36,6 +36,7 @@ class BaseRuntimeConfig(BaseModel):
 class PythonRuntimeConfig(BaseRuntimeConfig):
     version: str | None = None
     requirements_file: PathLike | None = None
+    use_uv: bool = True
     cmd: list[str] = Field(default_factory=lambda: ["python"])
 
     @field_validator("requirements_file")

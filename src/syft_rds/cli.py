@@ -1,35 +1,46 @@
-from pathlib import Path
-from typing import Optional
-
 import typer
-from syft_core import Client as SyftBoxClient
-
-from syft_rds.server.app import create_app
 
 app = typer.Typer(
     name="syft-rds",
-    help="Syft RDS CLI",
-    no_args_is_help=True,
+    help="Syft RDS - Remote Data Science with Privacy",
     pretty_exceptions_enable=False,
-    context_settings={"help_option_names": ["-h", "--help"]},
+    rich_markup_mode=None,  # Disable rich formatting to avoid version conflicts
 )
 
 
-@app.command()
-def server(
-    syftbox_config: Optional[Path] = typer.Option(None),
-) -> None:
-    """Start the RDS server."""
-    syftbox_client = SyftBoxClient.load(filepath=syftbox_config)
-    typer.echo(f"SyftBox client loaded from {syftbox_client.config_path}")
-    rds_app = create_app(client=syftbox_client)
-    rds_app.run_forever()
+def show_info():
+    """Show version information and getting started guide."""
+    from syft_rds import __version__
+
+    typer.echo(f"syft-rds version {__version__}")
+    typer.echo()
+    typer.secho("Getting Started:", fg=typer.colors.GREEN, bold=True)
+    typer.echo("  Use Python to interact with Syft RDS:")
+    typer.echo()
+    typer.secho("    from syft_rds import init_session", fg=typer.colors.CYAN)
+    typer.echo()
+    typer.secho("    # For Data Owners:", fg=typer.colors.YELLOW)
+    typer.secho("    client = init_session(", fg=typer.colors.CYAN)
+    typer.secho("        host='do@example.com',", fg=typer.colors.CYAN)
+    typer.secho("        email='do@example.com'", fg=typer.colors.CYAN)
+    typer.secho("    )", fg=typer.colors.CYAN)
+    typer.echo()
+    typer.secho("    # For Data Scientists:", fg=typer.colors.YELLOW)
+    typer.secho("    client = init_session(", fg=typer.colors.CYAN)
+    typer.secho("        host='do@example.com',", fg=typer.colors.CYAN)
+    typer.secho("        email='ds@example.com'", fg=typer.colors.CYAN)
+    typer.secho("    )", fg=typer.colors.CYAN)
+    typer.echo()
+    typer.secho("Documentation:", fg=typer.colors.GREEN, bold=True)
+    typer.echo("  https://docs.syftbox.openmined.org")
 
 
-@app.callback()
-def callback():
-    # Empty command to enable subcommands
-    pass
+@app.callback(invoke_without_command=True)
+def callback(ctx: typer.Context):
+    """Show version and getting started information."""
+    if ctx.invoked_subcommand is None:
+        # No subcommand was invoked, show info
+        show_info()
 
 
 def main():

@@ -44,6 +44,45 @@ Then open `notebooks/quickstart/full_flow.ipynb` and run through the cells.
 5. **Data Owner** shares the results
 6. **Data Scientist** views the output
 
+## Private Dataset Storage
+
+### Storage Locations
+
+**Private datasets** are stored in `~/.syftbox/private_datasets/<email>/<dataset-name>/` and are **NEVER synced** to the SyftBox relay server. This ensures true client-side privacy - your private data never leaves your machine.
+
+**Mock (public) datasets** are stored in `~/SyftBox/datasites/<email>/public/datasets/` and **ARE synced** to the relay server, allowing other users to explore your dataset structure and submit job requests.
+
+```
+~/.syftbox/
+  private_datasets/
+    your-email@example.com/
+      my-dataset/           # Your private data (NEVER synced anywhere)
+        data.csv
+        ...
+
+~/SyftBox/
+  datasites/
+    your-email@example.com/
+      public/
+        datasets/
+          my-dataset/         # Your mock data (synced to the SyftBox server and other datasites)
+            mock_data.csv
+            README.md
+```
+
+### Migration from v0.4.x
+
+⚠️ **BREAKING CHANGE in syft-rds v0.5.0**
+
+If you have existing datasets created with syft-rds v0.4.x, you'll need to recreate them:
+
+1. Note your existing dataset names
+2. Upgrade to syft-rds v0.5.0+
+3. Re-create datasets using the same private data source
+4. The new version will automatically use the new location
+
+Old private data in `datasites/<email>/private/` will not interfere and will be automatically cleaned up when you delete the datasets.
+
 ## Development
 
 ### Running Tests

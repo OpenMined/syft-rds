@@ -34,11 +34,12 @@ class DatasetSchemaManager:
         syftbox_client_email = self._path_manager.syftbox_client_email
 
         # Generate URLs for the dataset components
+        # Note: Don't pass source paths - URLs should point to the dataset location only
         mock_url = DatasetUrlManager.get_mock_dataset_syftbox_url(
-            syftbox_client_email, dataset_create.name, Path(dataset_create.mock_path)
+            syftbox_client_email, dataset_create.name
         )
         private_url = DatasetUrlManager.get_private_dataset_syftbox_url(
-            syftbox_client_email, dataset_create.name, Path(dataset_create.path)
+            syftbox_client_email, dataset_create.name
         )
 
         readme_url: SyftBoxURL = (

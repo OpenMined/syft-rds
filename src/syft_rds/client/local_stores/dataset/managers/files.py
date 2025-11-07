@@ -119,10 +119,22 @@ class DatasetFilesManager:
         dataset_name: str,
         path: Union[str, Path],
     ) -> Path:
-        """Copy private data to the private SyftBox directory."""
+        """Copy private data to non-synced SyftBox directory.
+
+        This copies the user's private dataset files to ~/.syftbox/private_datasets/
+        which is outside the datasites folder and will NOT be synced to the server.
+
+        Args:
+            dataset_name: Name of the dataset
+            path: Source path containing private data files
+
+        Returns:
+            Path to the copied private dataset directory
+        """
         private_dataset_dir: Path = self._path_manager.get_local_private_dataset_dir(
             dataset_name
         )
+        logger.info(f"Copying private dataset files to {private_dataset_dir}")
         return self.copy_directory(path, private_dataset_dir)
 
     def copy_description_file_to_public_syftbox_dir(

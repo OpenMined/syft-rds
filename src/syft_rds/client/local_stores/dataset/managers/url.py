@@ -4,7 +4,8 @@ from syft_core import SyftBoxURL
 
 from syft_rds.client.local_stores.dataset.constants import (
     DIRECTORY_DATASETS,
-    DIRECTORY_PRIVATE,
+    DIRECTORY_PRIVATE_DATASETS,
+    DIRECTORY_PRIVATE_DATASETS_ROOT,
     DIRECTORY_PUBLIC,
 )
 
@@ -25,10 +26,29 @@ class DatasetUrlManager:
     def get_private_dataset_syftbox_url(
         datasite_email: str, dataset_name: str, path: Union[Path, str] = None
     ) -> SyftBoxURL:
-        """Generate a SyftBox URL for the private dataset."""
-        return SyftBoxURL(
-            f"syft://{datasite_email}/{DIRECTORY_PRIVATE}/{DIRECTORY_DATASETS}/{dataset_name}"
+        """Generate SyftBox URL for private dataset.
+
+        NOTE: This URL is for local access only. Since private datasets are
+        stored outside the datasites folder, they are NOT accessible remotely
+        through the SyftBox relay server.
+
+        Args:
+            datasite_email: Owner's email address
+            dataset_name: Name of the dataset
+            path: Optional path within the dataset
+
+        Returns:
+            SyftBoxURL pointing to private dataset location
+        """
+        url_path = (
+            f"{DIRECTORY_PRIVATE_DATASETS_ROOT}/{DIRECTORY_PRIVATE_DATASETS}/"
+            f"{datasite_email}/{dataset_name}"
         )
+
+        if path:
+            url_path = f"{url_path}/{path}"
+
+        return SyftBoxURL(f"syft://{datasite_email}/{url_path}")
 
     @staticmethod
     def get_readme_syftbox_url(

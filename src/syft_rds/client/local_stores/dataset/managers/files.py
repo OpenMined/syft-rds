@@ -119,10 +119,22 @@ class DatasetFilesManager:
         dataset_name: str,
         path: Union[str, Path],
     ) -> Path:
-        """Copy private data to the private SyftBox directory."""
+        """Copy private data to non-synced SyftBox directory.
+
+        This copies the user's private dataset files to ~/.syftbox/private_datasets/
+        which is outside the datasites folder and will NOT be synced to the server.
+
+        Args:
+            dataset_name: Name of the dataset
+            path: Source path containing private data files
+
+        Returns:
+            Path to the copied private dataset directory
+        """
         private_dataset_dir: Path = self._path_manager.get_local_private_dataset_dir(
             dataset_name
         )
+        logger.info(f"Copying private dataset files to {private_dataset_dir}")
         return self.copy_directory(path, private_dataset_dir)
 
     def copy_description_file_to_public_syftbox_dir(
@@ -169,6 +181,24 @@ class DatasetFilesManager:
 
             self._safe_remove_directory(public_dir)
             self._safe_remove_directory(private_dir)
+
+            # TODO(v0.6.0): Remove this legacy cleanup code after users have migrated
+            # Clean up old private dataset location from v0.4.x
+            # Old path: ~/SyftBox/datasites/<email>/private/datasets/<name>
+            legacy_private_dir = (
+                self._path_manager.syftbox_client.my_datasite
+                / "private"
+                / "datasets"
+                / name
+            )
+            if legacy_private_dir.exists():
+                logger.warning(
+                    f"Found dataset in legacy location (v0.4.x): {legacy_private_dir}. "
+                    f"Cleaning up old data. Please recreate datasets with v0.5.0+ "
+                    f"to use the new Syft datasets structure."
+                )
+                self._safe_remove_directory(legacy_private_dir)
+
         except Exception as e:
             logger.error(f"Failed to cleanup dataset files: {str(e)}")
             raise RuntimeError(f"Failed to clean up dataset '{name}'") from e

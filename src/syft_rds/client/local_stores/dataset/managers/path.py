@@ -4,7 +4,8 @@ from syft_core import Client as SyftBoxClient
 
 from syft_rds.client.local_stores.dataset.constants import (
     DIRECTORY_DATASETS,
-    DIRECTORY_PRIVATE,
+    DIRECTORY_PRIVATE_DATASETS,
+    DIRECTORY_PRIVATE_DATASETS_ROOT,
     DIRECTORY_PUBLIC,
 )
 
@@ -32,11 +33,20 @@ class DatasetPathManager:
         )
 
     def get_local_private_dataset_dir(self, dataset_name: str) -> Path:
-        """Get the local private directory path for a dataset."""
+        """Get local private directory for a dataset.
+
+        Returns path like: ~/.syftbox/private_datasets/<email>/<dataset_name>/
+        Private datasets (as with all other things in .syftbox) are always stored
+        locally and never synced to the SyftBox or shared with other datasites.
+        """
+        # Get .syftbox directory (parent of data_dir which is ~/SyftBox)
+        syftbox_root = self.syftbox_client.config.data_dir.parent
+
         return (
-            self.syftbox_client.my_datasite
-            / DIRECTORY_PRIVATE
-            / DIRECTORY_DATASETS
+            syftbox_root
+            / DIRECTORY_PRIVATE_DATASETS_ROOT
+            / DIRECTORY_PRIVATE_DATASETS
+            / self.syftbox_client.email
             / dataset_name
         )
 

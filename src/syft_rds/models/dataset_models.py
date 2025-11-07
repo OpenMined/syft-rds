@@ -69,10 +69,17 @@ class Dataset(ItemBase):
                 f"Your SyftBox email: '{self._syftbox_client.email}'. "
                 f"Host email: '{self._client.config.host}'"
             )
-
-        private_path: Path = self.private.to_local_path(
-            datasites_path=self._syftbox_client.datasites
+        # Private datasets are stored in ~/.syftbox/private_datasets/<email>/<dataset-name>
+        # Use the same logic as DatasetPathManager.get_local_private_dataset_dir()
+        home_dir = self._syftbox_client.config.data_dir.parent
+        private_path = (
+            home_dir
+            / ".syftbox"
+            / "private_datasets"
+            / self._syftbox_client.email
+            / self.name
         )
+
         if not private_path.exists():
             raise FileNotFoundError(
                 f"Private data not found at {private_path}. "

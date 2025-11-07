@@ -181,6 +181,24 @@ class DatasetFilesManager:
 
             self._safe_remove_directory(public_dir)
             self._safe_remove_directory(private_dir)
+
+            # TODO(v0.6.0): Remove this legacy cleanup code after users have migrated
+            # Clean up old private dataset location from v0.4.x
+            # Old path: ~/SyftBox/datasites/<email>/private/datasets/<name>
+            legacy_private_dir = (
+                self._path_manager.syftbox_client.my_datasite
+                / "private"
+                / "datasets"
+                / name
+            )
+            if legacy_private_dir.exists():
+                logger.warning(
+                    f"Found dataset in legacy location (v0.4.x): {legacy_private_dir}. "
+                    f"Cleaning up old data. Please recreate datasets with v0.5.0+ "
+                    f"to use the new Syft datasets structure."
+                )
+                self._safe_remove_directory(legacy_private_dir)
+
         except Exception as e:
             logger.error(f"Failed to cleanup dataset files: {str(e)}")
             raise RuntimeError(f"Failed to clean up dataset '{name}'") from e
